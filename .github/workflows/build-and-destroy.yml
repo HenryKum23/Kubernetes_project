@@ -94,6 +94,9 @@ on:
     paths:
       - 'app/**'            # Trigger when anything in app/ changes
   workflow_dispatch:
+
+  permissions:
+  contents: write
   
 jobs:
   build-and-push:
@@ -213,6 +216,6 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git add apps/my-app/deployment.yml apps/my-app/chatbot-deployment.yml
-          git commit -m "ci: update image tags to ${{ github.sha }} [skip ci]"
-          git push origin main
+          git add apps/my-app/deployment.yaml apps/my-app/chatbot-deployment.yaml
+          git diff --staged --quiet || git commit -m "ci: update image tags to ${{ github.sha }} [skip ci]"
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} HEAD:main
