@@ -196,16 +196,16 @@ jobs:
           docker push ${{ steps.login-ecr.outputs.registry }}/eshop-chatbot:${{ github.sha }}
           docker push ${{ steps.login-ecr.outputs.registry }}/eshop-chatbot:latest
 
-      # Step 11 — Update both deployment.yaml files with new image tags
+      # Step 11 — Update both deployment.yml files with new image tags
       - name: Update eshop deployment image tag
         run: |
           sed -i "s|image:.*my-app.*|image: ${{ steps.login-ecr.outputs.registry }}/my-app:${{ github.sha }}|g" \
-            apps/my-app/deployment.yaml
+            apps/my-app/deployment.yml
 
       - name: Update chatbot deployment image tag
         run: |
           sed -i "s|image:.*eshop-chatbot.*|image: ${{ steps.login-ecr.outputs.registry }}/eshop-chatbot:${{ github.sha }}|g" \
-            apps/my-app/chatbot-deployment.yaml
+            apps/my-app/chatbot-deployment.yml
 
       # Step 12 — Commit and push updated manifests
       # [skip ci] prevents this commit from retriggering the workflow
@@ -213,6 +213,6 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git add apps/my-app/deployment.yaml apps/my-app/chatbot-deployment.yaml
+          git add apps/my-app/deployment.yml apps/my-app/chatbot-deployment.yml
           git commit -m "ci: update image tags to ${{ github.sha }} [skip ci]"
           git push origin main
