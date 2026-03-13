@@ -1,0 +1,61 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ECR Repositories for Eshop and Chatbot
+
+Resources:
+  EshopRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: my-app
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "selection": {
+                  "tagStatus": "any",
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 10
+                },
+                "action": { "type": "expire" }
+              }
+            ]
+          }
+      EncryptionConfiguration:
+        EncryptionType: AES256
+
+  ChatbotRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: eshop-chatbot
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "selection": {
+                  "tagStatus": "any",
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 10
+                },
+                "action": { "type": "expire" }
+              }
+            ]
+          }
+      EncryptionConfiguration:
+        EncryptionType: AES256
+
+Outputs:
+  EshopRepositoryURI:
+    Value: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/my-app"
+    Export:
+      Name: EshopECRRepositoryURI
+  ChatbotRepositoryURI:
+    Value: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/eshop-chatbot"
+    Export:
+      Name: ChatbotECRRepositoryURI
