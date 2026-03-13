@@ -3,6 +3,7 @@
 # ─────────────────────────────────────────
 FROM node:22-alpine AS builder
 RUN apk update && apk upgrade --no-cache
+RUN npm install -g npm@latest
 
 WORKDIR /usr/src/app
 
@@ -14,6 +15,8 @@ RUN npm ci --only=production
 # Stage 2 — Final hardened image
 # ─────────────────────────────────────────
 FROM node:22-alpine
+RUN apk update && apk upgrade --no-cache
+RUN npm install -g npm@latest
 
 LABEL maintainer="henrykum088@gmail.com"
 LABEL service="eshop-chatbot"

@@ -5,6 +5,7 @@
 # ─────────────────────────────────────────
 FROM node:22-alpine AS builder
 RUN apk update && apk upgrade --no-cache
+RUN npm install -g npm@latest
 
 WORKDIR /usr/src/app
 
@@ -19,6 +20,8 @@ RUN npm ci --only=production
 # Only copies what is needed to run the app
 # ─────────────────────────────────────────
 FROM node:22-alpine
+RUN apk update && apk upgrade --no-cache
+RUN npm install -g npm@latest
 
 # Add security labels
 LABEL maintainer="henrykum088@gmail.com"
