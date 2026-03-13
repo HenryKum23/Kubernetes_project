@@ -95,8 +95,8 @@ on:
       - 'app/**'            # Trigger when anything in app/ changes
   workflow_dispatch:
 
-  permissions:
-    contents: write
+permissions:
+  contents: write
   
 jobs:
   build-and-push:
