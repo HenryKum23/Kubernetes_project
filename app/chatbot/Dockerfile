@@ -1,7 +1,8 @@
 # ─────────────────────────────────────────
 # Stage 1 — Builder
 # ─────────────────────────────────────────
-FROM node:18-alpine AS builder
+FROM node:22-alpine AS builder
+RUN apk update && apk upgrade --no-cache
 
 WORKDIR /usr/src/app
 
@@ -12,7 +13,7 @@ RUN npm ci --only=production
 # ─────────────────────────────────────────
 # Stage 2 — Final hardened image
 # ─────────────────────────────────────────
-FROM node:18-alpine
+FROM node:22-alpine
 
 LABEL maintainer="henrykum088@gmail.com"
 LABEL service="eshop-chatbot"

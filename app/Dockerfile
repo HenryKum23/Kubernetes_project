@@ -3,7 +3,8 @@
 # Install dependencies in a separate stage
 # so build tools never make it into the final image
 # ─────────────────────────────────────────
-FROM node:18-alpine AS builder
+FROM node:22-alpine AS builder
+RUN apk update && apk upgrade --no-cache
 
 WORKDIR /usr/src/app
 
@@ -17,7 +18,7 @@ RUN npm ci --only=production
 # Stage 2 — Final hardened image
 # Only copies what is needed to run the app
 # ─────────────────────────────────────────
-FROM node:18-alpine
+FROM node:22-alpine
 
 # Add security labels
 LABEL maintainer="henrykum088@gmail.com"
