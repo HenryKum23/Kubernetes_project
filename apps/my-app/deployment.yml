@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eshop
+  namespace: my-app
+  labels:
+    app: my-app
+spec:
+  replicas: 2                          # 2 copies of your app for high availability
+  selector:
+    matchLabels:
+      app: my-app
+  template:
+    metadata:
+      labels:
+        app: my-app
+    spec:
+      containers:
+        - name: eshop_container
+          image: YOUR_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/my-app:latest  # updated by GitHub Actions automatically
+          ports:
+            - containerPort: 3000     # Express app runs on port 3000
+          volumeMounts:
+            - name: html-content
+              mountPath: /usr/share/nginx/html   # Where nginx serves files from
+          resources:
+            requests:
+              cpu: 50m                 # Very low CPU request — fine for a simple HTML app
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+      volumes:
+        - name: html-content
+          configMap:
+            name: my-app-html          # Your HTML files stored as a ConfigMap

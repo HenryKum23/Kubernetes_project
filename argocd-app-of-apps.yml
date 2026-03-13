@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app-of-apps
+  namespace: argocd
+  # Ensure this app is never deleted accidentally
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/HenryKum23/Kubernetes_project.git  # Replace with your repo URL
+    targetRevision: main
+    path: apps  # ArgoCD watches everything inside the /apps folder
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true      # Removes resources deleted from Git
+      selfHeal: true   # Auto-corrects any manual changes made in cluster
+    syncOptions:
+      - CreateNamespace=true  # Automatically creates the namespace if it doesn't exist

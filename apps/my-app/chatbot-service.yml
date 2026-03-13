@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: chatbot
+  namespace: my-app
+spec:
+  type: ClusterIP                # Internal only — eshop calls chatbot inside the cluster
+  selector:
+    app: chatbot                 # Matches the label on chatbot pods
+  ports:
+    - protocol: TCP
+      port: 80                   # Port the service listens on
+      targetPort: 4000           # Port the chatbot container listens on
+  

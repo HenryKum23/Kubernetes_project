@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: external-secrets-operator
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://charts.external-secrets.io   # Official External Secrets Operator Helm repo
+    chart: external-secrets
+    targetRevision: 0.9.11                         # Stable production version
+    helm:
+      values: |
+        installCRDs: true                          # Installs ExternalSecret and SecretStore CRDs
+        serviceAccount:
+          create: false
+          name: external-secrets-sa               # Uses the IRSA service account from eksctl
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: external-secrets
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true                       # ArgoCD creates the external-secrets namespace

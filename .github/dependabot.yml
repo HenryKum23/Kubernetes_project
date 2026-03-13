@@ -1,0 +1,25 @@
+version: 2
+updates:
+  # Keep Node.js dependencies up to date
+  - package-ecosystem: "npm"
+    directory: "/app"           # points to where package.json lives
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+
+  # Keep GitHub Actions up to date
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "github-actions"
+
+  # Keep Docker base image up to date
+  - package-ecosystem: "docker"
+    directory: "/app"           # points to where Dockerfile lives
+    schedule:
+      interval: "weekly"
+    labels:
+      - "docker"

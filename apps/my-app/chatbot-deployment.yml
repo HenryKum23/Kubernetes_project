@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chatbot
+  namespace: my-app
+  labels:
+    app: chatbot
+spec:
+  replicas: 1                          # 1 replica is fine for a chatbot service
+  selector:
+    matchLabels:
+      app: chatbot
+  template:
+    metadata:
+      labels:
+        app: chatbot
+    spec:
+      containers:
+        - name: chatbot
+          image: 217340893387.dkr.ecr.us-east-1.amazonaws.com/eshop-chatbot:latest
+          ports:
+            - containerPort: 4000
+          env:
+            # Inject the Anthropic API key from the Kubernetes Secret
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: anthropic-secret
+                  key: ANTHROPIC_API_KEY
+            # Tell chatbot which URL the eshop is running on (for CORS)
+            - name: ESHOP_URL
+              value: "https://henrykumahconsult.org"    # Replace with your actual domain
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          # Liveness probe — restart pod if it becomes unhealthy
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 4000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          # Readiness probe — only send traffic when pod is ready
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 4000
+            initialDelaySeconds: 5
+            periodSeconds: 10
