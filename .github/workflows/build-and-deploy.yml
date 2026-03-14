@@ -182,8 +182,8 @@ jobs:
       # Step 6 — Verify both deployments rolled out successfully
       - name: Verify deployments
         run: |
-          kubectl rollout status deployment/my-app --timeout=120s
-          kubectl rollout status deployment/eshop-chatbot --timeout=120s
+          kubectl rollout status deployment/eshop --timeout=120s
+          kubectl rollout status deployment/chatbot --timeout=120s
 
       # Step 7 — Print ingress address (ALB DNS name assigned by AWS)
       - name: Get ingress address
