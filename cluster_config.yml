@@ -65,7 +65,7 @@ managedNodeGroups:
     desiredCapacity: 2         # 2 nodes for basic HA without over-spending
     volumeSize: 20             # 20GB is sufficient for lightweight workloads
     volumeType: gp3
-    amiFamily: AmazonLinux2
+    amiFamily: AmazonLinux2023 # Latest Amazon Linux 2023 AMI for EKS
     labels:
       role: app
       environment: production
