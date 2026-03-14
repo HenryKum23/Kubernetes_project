@@ -70,7 +70,7 @@ jobs:
       # Step 7 — Login to ECR
       - name: Login to Amazon ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
+        uses: aws-actions/amazon-ecr-login@v2
 
       # Step 8 — Build both Docker images
       - name: Build eshop Docker image
