@@ -136,9 +136,10 @@ jobs:
           aws eks update-kubeconfig --name prod-cluster --region us-east-1
 
       - name: Install Helm
-        uses: azure/setup-helm@v3
+        uses: azure/setup-helm@v4
         with:
           version: latest
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       # Step 5 — Cluster Autoscaler
       - name: Install Cluster Autoscaler
