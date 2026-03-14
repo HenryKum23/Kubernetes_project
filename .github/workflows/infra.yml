@@ -33,27 +33,38 @@ jobs:
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           sed -i "s/YOUR_ACCOUNT_ID/${ACCOUNT_ID}/g" cluster_config.yml
 
-      # Step 4 — Create EKS cluster if it does not already exist
+      # Step 4 — Install eksctl (always installed, needed for both create and scale)
+      - name: Install eksctl
+        run: |
+          curl --silent --location \
+            "https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_Linux_amd64.tar.gz" \
+            | tar xz -C /tmp
+          sudo mv /tmp/eksctl /usr/local/bin
+          eksctl version
+
+      # Step 5 — Create EKS cluster if it does not already exist
       - name: Create EKS cluster if not exists
         run: |
           if ! aws eks describe-cluster --name prod-cluster --region us-east-1 2>/dev/null; then
             echo "Cluster not found — creating..."
-            curl --silent --location \
-              "https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_Linux_amd64.tar.gz" \
-              | tar xz -C /tmp
-            sudo mv /tmp/eksctl /usr/local/bin
             eksctl create cluster -f cluster_config.yml
           else
             echo "Cluster already exists — skipping creation"
           fi
 
-      # Step 5 — Scale nodegroup to match desiredCapacity in cluster_config.yml
-      # This applies even when the cluster already exists
+      # Step 6 — Scale nodegroup to desired capacity
+      # Applies desiredCapacity even when cluster already exists
       - name: Scale nodegroup to desired capacity
         run: |
-          eksctl scale nodegroup             --cluster=prod-cluster             --name=app-nodes             --nodes=2             --nodes-min=1             --nodes-max=3             --region=us-east-1
+          eksctl scale nodegroup \
+            --cluster=prod-cluster \
+            --name=app-nodes \
+            --nodes=2 \
+            --nodes-min=1 \
+            --nodes-max=3 \
+            --region=us-east-1
 
-      # Step 6 — Update kubeconfig so helm can reach the cluster
+      # Step 7 — Update kubeconfig so helm can reach the cluster
       - name: Update kubeconfig
         run: |
           aws eks update-kubeconfig --name prod-cluster --region us-east-1
@@ -86,6 +97,7 @@ jobs:
         uses: azure/setup-helm@v4
         with:
           version: latest
+
       - name: Install AWS Load Balancer Controller
         run: |
           helm repo add eks https://aws.github.io/eks-charts
@@ -99,7 +111,6 @@ jobs:
 
       # Wait until the webhook endpoint actually has ready pods behind it
       # Retries every 15 seconds for up to 10 minutes
-      # This is the real readiness gate — not a fixed sleep
       - name: Wait for LBC webhook to be ready
         run: |
           echo "Waiting for Load Balancer Controller webhook to be ready..."
