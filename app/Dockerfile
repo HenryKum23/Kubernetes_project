@@ -3,7 +3,7 @@
 # Install dependencies in a separate stage
 # so build tools never make it into the final image
 # ─────────────────────────────────────────
-FROM node:22-alpine AS builder
+FROM node:25-alpine AS builder
 RUN apk update && apk upgrade --no-cache
 RUN npm install -g npm@latest
 
@@ -19,7 +19,7 @@ RUN npm ci --only=production
 # Stage 2 — Final hardened image
 # Only copies what is needed to run the app
 # ─────────────────────────────────────────
-FROM node:22-alpine
+FROM node:25-alpine
 RUN apk update && apk upgrade --no-cache
 RUN npm install -g npm@latest
 
