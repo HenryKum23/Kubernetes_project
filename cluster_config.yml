@@ -90,10 +90,6 @@ addons:
     version: latest
   - name: kube-proxy
     version: latest
-  - name: aws-ebs-csi-driver
-    version: latest
-    wellKnownPolicies:
-      ebsCSIController: true
 
 # CloudWatch Logging — keeping only essential logs to reduce cost
 cloudWatch:
