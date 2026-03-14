@@ -28,7 +28,6 @@ jobs:
           aws-region: us-east-1
 
       # Step 3 — Inject real AWS Account ID into cluster_config.yml
-      # YOUR_ACCOUNT_ID is a placeholder in the file — replaced at runtime
       - name: Inject AWS Account ID into cluster config
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
@@ -54,19 +53,18 @@ jobs:
           aws eks update-kubeconfig --name prod-cluster --region us-east-1
 
   # ─────────────────────────────────────────────
-  # JOB 2 — Install Cluster Addons
+  # JOB 2 — Install AWS Load Balancer Controller
+  # Must complete and be healthy before anything else installs
   # ─────────────────────────────────────────────
-  install-addons:
-    name: Install Cluster Addons
+  install-lbc:
+    name: Install Load Balancer Controller
     runs-on: ubuntu-latest
-    needs: provision-cluster     # Only runs after cluster is confirmed up
+    needs: provision-cluster
 
     steps:
-      # Step 1 — Checkout code
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # Step 2 — Configure AWS credentials
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -74,20 +72,15 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      # Step 3 — Reconnect to cluster on this new runner
       - name: Update kubeconfig
         run: |
           aws eks update-kubeconfig --name prod-cluster --region us-east-1
 
-      # Step 4 — Install Helm
       - name: Install Helm
         uses: azure/setup-helm@v3
         with:
           version: latest
 
-      # Step 5 — AWS Load Balancer Controller
-      # upgrade --install is idempotent — safe to re-run
-      # --wait removed to avoid timeout on low-resource nodes
       - name: Install AWS Load Balancer Controller
         run: |
           helm repo add eks https://aws.github.io/eks-charts
@@ -98,7 +91,56 @@ jobs:
             --set serviceAccount.create=false \
             --set serviceAccount.name=aws-load-balancer-controller
 
-      # Step 6 — Cluster Autoscaler
+      # Wait until the webhook endpoint actually has ready pods behind it
+      # Retries every 15 seconds for up to 10 minutes
+      # This is the real readiness gate — not a fixed sleep
+      - name: Wait for LBC webhook to be ready
+        run: |
+          echo "Waiting for Load Balancer Controller webhook to be ready..."
+          for i in $(seq 1 40); do
+            READY=$(kubectl get endpoints aws-load-balancer-webhook-service \
+              -n kube-system \
+              -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null)
+            if [ -n "$READY" ]; then
+              echo "Webhook is ready — endpoints: $READY"
+              exit 0
+            fi
+            echo "Attempt $i/40 — webhook not ready yet, retrying in 15s..."
+            sleep 15
+          done
+          echo "Webhook did not become ready in time"
+          exit 1
+
+  # ─────────────────────────────────────────────
+  # JOB 3 — Install remaining addons
+  # Only runs after LBC webhook is confirmed ready
+  # ─────────────────────────────────────────────
+  install-addons:
+    name: Install Cluster Autoscaler and External Secrets
+    runs-on: ubuntu-latest
+    needs: install-lbc           # Hard dependency — will not run until LBC webhook is ready
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name prod-cluster --region us-east-1
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: latest
+
+      # Step 5 — Cluster Autoscaler
       - name: Install Cluster Autoscaler
         run: |
           helm repo add autoscaler https://kubernetes.github.io/autoscaler
@@ -107,7 +149,7 @@ jobs:
             -n kube-system \
             --set autoDiscovery.clusterName=prod-cluster
 
-      # Step 7 — External Secrets Operator
+      # Step 6 — External Secrets Operator
       - name: Install External Secrets Operator
         run: |
           helm repo add external-secrets https://charts.external-secrets.io
@@ -115,7 +157,7 @@ jobs:
           helm upgrade --install external-secrets external-secrets/external-secrets \
             -n external-secrets --create-namespace
 
-      # Step 8 — Verify all addon pods are running
+      # Step 7 — Verify all addon pods are running
       - name: Verify addons
         run: |
           kubectl get pods -n kube-system
