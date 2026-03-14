@@ -166,21 +166,26 @@ jobs:
         run: |
           aws eks update-kubeconfig --name prod-cluster --region us-east-1
 
-      # Step 4 — Apply Kubernetes manifests
+      # Step 4 — Create namespace if it does not exist
+      # --dry-run=client -o yaml | kubectl apply is idempotent — safe to re-run
+      - name: Create namespace
+        run: |
+          kubectl create namespace my-app --dry-run=client -o yaml | kubectl apply -f -
+
+      # Step 5 — Apply Kubernetes manifests
       - name: Apply Kubernetes manifests
         run: |
           kubectl apply -f apps/my-app/deployment.yml
           kubectl apply -f apps/my-app/chatbot-deployment.yml
           kubectl apply -f apps/my-app/ingress.yml
 
-      # Step 5 — Verify both deployments rolled out successfully
+      # Step 6 — Verify both deployments rolled out successfully
       - name: Verify deployments
         run: |
           kubectl rollout status deployment/my-app --timeout=120s
           kubectl rollout status deployment/eshop-chatbot --timeout=120s
 
-      # Step 6 — Print ingress address (ALB DNS name assigned by AWS)
+      # Step 7 — Print ingress address (ALB DNS name assigned by AWS)
       - name: Get ingress address
         run: |
           kubectl get ingress my-app -n my-app
-          echo "Application should be accessible at http://$(kubectl get ingress my-app -n my-app -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')"
