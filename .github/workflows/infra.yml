@@ -87,6 +87,7 @@ jobs:
 
       # Step 5 — AWS Load Balancer Controller
       # upgrade --install is idempotent — safe to re-run
+      # --wait removed to avoid timeout on low-resource nodes
       - name: Install AWS Load Balancer Controller
         run: |
           helm repo add eks https://aws.github.io/eks-charts
@@ -95,8 +96,7 @@ jobs:
             -n kube-system \
             --set clusterName=prod-cluster \
             --set serviceAccount.create=false \
-            --set serviceAccount.name=aws-load-balancer-controller \
-            --wait
+            --set serviceAccount.name=aws-load-balancer-controller
 
       # Step 6 — Cluster Autoscaler
       - name: Install Cluster Autoscaler
@@ -105,8 +105,7 @@ jobs:
           helm repo update
           helm upgrade --install cluster-autoscaler autoscaler/cluster-autoscaler \
             -n kube-system \
-            --set autoDiscovery.clusterName=prod-cluster \
-            --wait
+            --set autoDiscovery.clusterName=prod-cluster
 
       # Step 7 — External Secrets Operator
       - name: Install External Secrets Operator
@@ -114,8 +113,7 @@ jobs:
           helm repo add external-secrets https://charts.external-secrets.io
           helm repo update
           helm upgrade --install external-secrets external-secrets/external-secrets \
-            -n external-secrets --create-namespace \
-            --wait
+            -n external-secrets --create-namespace
 
       # Step 8 — Verify all addon pods are running
       - name: Verify addons
