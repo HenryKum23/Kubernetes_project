@@ -17,6 +17,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: eshop_service
+                name: eshop-service
                 port:
                   number: 80
