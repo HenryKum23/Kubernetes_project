@@ -1,0 +1,124 @@
+name: Provision Infrastructure
+
+on:
+  workflow_dispatch:             # Manual trigger only — intentional, controlled infra changes
+
+permissions:
+  contents: read
+
+jobs:
+  # ─────────────────────────────────────────────
+  # JOB 1 — Provision EKS Cluster
+  # ─────────────────────────────────────────────
+  provision-cluster:
+    name: Provision EKS Cluster
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1 — Checkout code (needed for cluster_config.yml)
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Step 2 — Configure AWS credentials
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      # Step 3 — Inject real AWS Account ID into cluster_config.yml
+      # YOUR_ACCOUNT_ID is a placeholder in the file — replaced at runtime
+      - name: Inject AWS Account ID into cluster config
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          sed -i "s/YOUR_ACCOUNT_ID/${ACCOUNT_ID}/g" cluster_config.yml
+
+      # Step 4 — Create EKS cluster if it does not already exist
+      - name: Create EKS cluster if not exists
+        run: |
+          if ! aws eks describe-cluster --name prod-cluster --region us-east-1 2>/dev/null; then
+            echo "Cluster not found — creating..."
+            curl --silent --location \
+              "https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_Linux_amd64.tar.gz" \
+              | tar xz -C /tmp
+            sudo mv /tmp/eksctl /usr/local/bin
+            eksctl create cluster -f cluster_config.yml
+          else
+            echo "Cluster already exists — skipping creation"
+          fi
+
+      # Step 5 — Update kubeconfig so helm can reach the cluster
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name prod-cluster --region us-east-1
+
+  # ─────────────────────────────────────────────
+  # JOB 2 — Install Cluster Addons
+  # ─────────────────────────────────────────────
+  install-addons:
+    name: Install Cluster Addons
+    runs-on: ubuntu-latest
+    needs: provision-cluster     # Only runs after cluster is confirmed up
+
+    steps:
+      # Step 1 — Checkout code
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Step 2 — Configure AWS credentials
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      # Step 3 — Reconnect to cluster on this new runner
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name prod-cluster --region us-east-1
+
+      # Step 4 — Install Helm
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: latest
+
+      # Step 5 — AWS Load Balancer Controller
+      # upgrade --install is idempotent — safe to re-run
+      - name: Install AWS Load Balancer Controller
+        run: |
+          helm repo add eks https://aws.github.io/eks-charts
+          helm repo update
+          helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller \
+            -n kube-system \
+            --set clusterName=prod-cluster \
+            --set serviceAccount.create=false \
+            --set serviceAccount.name=aws-load-balancer-controller \
+            --wait
+
+      # Step 6 — Cluster Autoscaler
+      - name: Install Cluster Autoscaler
+        run: |
+          helm repo add autoscaler https://kubernetes.github.io/autoscaler
+          helm repo update
+          helm upgrade --install cluster-autoscaler autoscaler/cluster-autoscaler \
+            -n kube-system \
+            --set autoDiscovery.clusterName=prod-cluster \
+            --wait
+
+      # Step 7 — External Secrets Operator
+      - name: Install External Secrets Operator
+        run: |
+          helm repo add external-secrets https://charts.external-secrets.io
+          helm repo update
+          helm upgrade --install external-secrets external-secrets/external-secrets \
+            -n external-secrets --create-namespace \
+            --wait
+
+      # Step 8 — Verify all addon pods are running
+      - name: Verify addons
+        run: |
+          kubectl get pods -n kube-system
+          kubectl get pods -n external-secrets
