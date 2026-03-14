@@ -38,7 +38,7 @@ RUN addgroup -S appgroup && \
 # Copy only production dependencies from builder stage
 COPY --from=builder /usr/src/app/node_modules ./node_modules
 
-# Copy application code
+# Copy application code that is the public folder that contained the html, css and js files for the frontend
 COPY . .
 
 # Set correct ownership of files to non-root user
