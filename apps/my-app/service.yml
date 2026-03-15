@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: eshop-service
-  namespace: my-app
+  namespace: my-app             # Must match the namespace in your Deployment manifests
 spec:
   type: ClusterIP              # Internal only — traffic comes in through the Ingress
   selector:

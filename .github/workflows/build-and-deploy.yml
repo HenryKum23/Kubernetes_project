@@ -5,7 +5,8 @@ on:
     branches:
       - main
     paths:
-      - 'app/**'                 # Trigger only when app code changes
+      - 'app/**' 
+      - 'apps/**'                # Trigger only when app code changes
   workflow_dispatch:
 
 permissions:
@@ -175,6 +176,8 @@ jobs:
       # Step 5 — Apply Kubernetes manifests
       - name: Apply Kubernetes manifests
         run: |
+          kubectl apply -f apps/my-app/secret-store.yml
+          kubectl apply -f apps/my-app/external-secret.yml
           kubectl apply -f apps/my-app/deployment.yml
           kubectl apply -f apps/my-app/chatbot-deployment.yml
           kubectl apply -f apps/my-app/ingress.yml
