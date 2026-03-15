@@ -5,8 +5,8 @@ on:
     branches:
       - main
     paths:
-      - 'app/**' 
-      - 'apps/**'                # Trigger only when app code changes
+      - 'app/**'                 # Trigger when app code changes
+      - 'apps/**'                # Trigger when Kubernetes manifests change
   workflow_dispatch:
 
 permissions:
@@ -178,6 +178,8 @@ jobs:
         run: |
           kubectl apply -f apps/my-app/secret-store.yml
           kubectl apply -f apps/my-app/external-secret.yml
+          kubectl apply -f apps/my-app/service.yml
+          kubectl apply -f apps/my-app/chatbot-service.yml
           kubectl apply -f apps/my-app/deployment.yml
           kubectl apply -f apps/my-app/chatbot-deployment.yml
           kubectl apply -f apps/my-app/ingress.yml
@@ -197,3 +199,4 @@ jobs:
       - name: Get ingress address
         run: |
           kubectl get ingress my-app -n my-app
+          echo "Access your app at http://$(kubectl get ingress my-app -n my-app -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')"
