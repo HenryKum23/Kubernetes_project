@@ -367,4 +367,3 @@ aws eks describe-cluster --name prod-cluster --region us-east-1
 | Route 53 | Hosted zone | ~$0.50 |
 | **Total (running 24/7)** | | **~$141/month** |
 
-> **Cost tip:** Delete the cluster when not actively using it. The EKS control plane alone costs $2.40/day. Running only during active development can reduce costs by 80% or more.
