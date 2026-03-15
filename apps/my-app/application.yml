@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: eshop
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/HenryKum23/Kubernetes_project.git
+    targetRevision: main
+    path: apps/my-app              # ArgoCD watches everything in this folder
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: my-app
+  syncPolicy:
+    automated:
+      prune: true                  # Removes resources deleted from Git
+      selfHeal: true               # Auto-corrects any manual changes in cluster
+    syncOptions:
+      - CreateNamespace=true       # Creates my-app namespace if it doesn't exist

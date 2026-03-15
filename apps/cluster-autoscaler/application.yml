@@ -8,9 +8,9 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://kubernetes.github.io/autoscaler   # Official autoscaler Helm chart repo
+    repoURL: https://kubernetes.github.io/autoscaler
     chart: cluster-autoscaler
-    targetRevision: 9.29.0
+    targetRevision: 9.37.0         # Fixed from 9.29.0 — matches infra.yml version
     helm:
       values: |
         autoDiscovery:
@@ -18,7 +18,7 @@ spec:
         awsRegion: us-east-1
         serviceAccount:
           create: false
-          name: cluster-autoscaler                     # Uses the service account created by eksctl
+          name: cluster-autoscaler
         extraArgs:
           balance-similar-node-groups: true
           skip-nodes-with-system-pods: false

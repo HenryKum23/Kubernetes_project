@@ -8,17 +8,17 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://aws.github.io/eks-charts   # Official AWS EKS Helm chart repo
+    repoURL: https://aws.github.io/eks-charts
     chart: aws-load-balancer-controller
-    targetRevision: 1.7.1
+    targetRevision: 1.14.0         # Fixed from 1.7.1 — correct existing version
     helm:
       values: |
         clusterName: prod-cluster
         serviceAccount:
           create: false
-          name: aws-load-balancer-controller   # Uses the service account created by eksctl
+          name: aws-load-balancer-controller
         region: us-east-1
-        vpcId: ""                              # Leave empty — auto-detected
+        vpcId: ""                  # Auto-detected
   destination:
     server: https://kubernetes.default.svc
     namespace: kube-system
@@ -27,4 +27,4 @@ spec:
       prune: true
       selfHeal: true
     syncOptions:
-      - CreateNamespace=false                  # kube-system already exists
+      - CreateNamespace=false      # kube-system already exists

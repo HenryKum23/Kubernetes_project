@@ -15,11 +15,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1 — Checkout code (needed for cluster_config.yml)
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Step 2 — Configure AWS credentials
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -27,13 +25,11 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      # Step 3 — Inject real AWS Account ID into cluster_config.yml
       - name: Inject AWS Account ID into cluster config
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           sed -i "s/YOUR_ACCOUNT_ID/${ACCOUNT_ID}/g" cluster_config.yml
 
-      # Step 4 — Install eksctl (always installed, needed for both create and scale)
       - name: Install eksctl
         run: |
           curl --silent --location \
@@ -42,7 +38,6 @@ jobs:
           sudo mv /tmp/eksctl /usr/local/bin
           eksctl version
 
-      # Step 5 — Create EKS cluster if it does not already exist
       - name: Create EKS cluster if not exists
         run: |
           if ! aws eks describe-cluster --name prod-cluster --region us-east-1 2>/dev/null; then
@@ -52,8 +47,6 @@ jobs:
             echo "Cluster already exists — skipping creation"
           fi
 
-      # Step 6 — Scale nodegroup to desired capacity
-      # Applies desiredCapacity even when cluster already exists
       - name: Scale nodegroup to desired capacity
         run: |
           eksctl scale nodegroup \
@@ -64,14 +57,14 @@ jobs:
             --nodes-max=3 \
             --region=us-east-1
 
-      # Step 7 — Update kubeconfig so helm can reach the cluster
       - name: Update kubeconfig
         run: |
           aws eks update-kubeconfig --name prod-cluster --region us-east-1
 
   # ─────────────────────────────────────────────
   # JOB 2 — Install AWS Load Balancer Controller
-  # Must complete and be healthy before anything else installs
+  # Must be installed before ArgoCD since ArgoCD
+  # needs the ALB ingress to expose its UI
   # ─────────────────────────────────────────────
   install-lbc:
     name: Install Load Balancer Controller
@@ -109,8 +102,6 @@ jobs:
             --set serviceAccount.create=false \
             --set serviceAccount.name=aws-load-balancer-controller
 
-      # Wait until the webhook endpoint actually has ready pods behind it
-      # Retries every 15 seconds for up to 10 minutes
       - name: Wait for LBC webhook to be ready
         run: |
           echo "Waiting for Load Balancer Controller webhook to be ready..."
@@ -129,13 +120,14 @@ jobs:
           exit 1
 
   # ─────────────────────────────────────────────
-  # JOB 3 — Install remaining addons
-  # Only runs after LBC webhook is confirmed ready
+  # JOB 3 — Install ArgoCD
+  # ArgoCD takes over managing all other addons
+  # and the app after this point via App of Apps
   # ─────────────────────────────────────────────
-  install-addons:
-    name: Install Cluster Autoscaler and External Secrets
+  install-argocd:
+    name: Install ArgoCD
     runs-on: ubuntu-latest
-    needs: install-lbc           # Hard dependency — will not run until LBC webhook is ready
+    needs: install-lbc
 
     steps:
       - name: Checkout code
@@ -157,27 +149,31 @@ jobs:
         with:
           version: latest
 
-      # Step 5 — Cluster Autoscaler
-      - name: Install Cluster Autoscaler
+      # Install ArgoCD via Helm — pinned for production stability
+      - name: Install ArgoCD
         run: |
-          helm repo add autoscaler https://kubernetes.github.io/autoscaler
+          helm repo add argo https://argoproj.github.io/argo-helm
           helm repo update
-          helm upgrade --install cluster-autoscaler autoscaler/cluster-autoscaler \
-            -n kube-system \
-            --version 9.37.0 \
-            --set autoDiscovery.clusterName=prod-cluster
+          helm upgrade --install argocd argo/argo-cd \
+            -n argocd --create-namespace \
+            --version 7.7.11 \
+            --set server.service.type=ClusterIP \
+            --set configs.params."server\.insecure"=true
 
-      # Step 6 — External Secrets Operator
-      - name: Install External Secrets Operator
+      # Wait for ArgoCD server to be fully ready
+      - name: Wait for ArgoCD to be ready
         run: |
-          helm repo add external-secrets https://charts.external-secrets.io
-          helm repo update
-          helm upgrade --install external-secrets external-secrets/external-secrets \
-            -n external-secrets --create-namespace \
-            --version 0.9.20
+          kubectl rollout status deployment/argocd-server \
+            -n argocd --timeout=300s
 
-      # Step 7 — Verify all addon pods are running
-      - name: Verify addons
+      # Apply the App of Apps — single manifest that tells ArgoCD
+      # to watch the apps/ folder and manage everything inside it
+      - name: Apply App of Apps
         run: |
-          kubectl get pods -n kube-system
-          kubectl get pods -n external-secrets
+          kubectl apply -f argocd-app-of-apps.yml
+
+      # Verify ArgoCD is running and app of apps is registered
+      - name: Verify ArgoCD
+        run: |
+          kubectl get pods -n argocd
+          kubectl get applications -n argocd
