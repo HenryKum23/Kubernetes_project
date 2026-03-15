@@ -1,6 +1,9 @@
-# EKS Production Cluster — Eshop Deployment
+# Production EKS Deployment — Eshop & AI Chatbot on AWS
 
-A complete GitOps-based deployment of a Node.js/Express eshop application on AWS EKS using ArgoCD, GitHub Actions, and CloudFormation.
+A complete GitOps-based deployment of a Node.js/Express eshop with an AI-powered chatbot on AWS EKS, using ArgoCD, GitHub Actions, External Secrets Operator, and a fully automated CI/CD pipeline.
+
+**Live:** [https://henrykumahconsult.org](https://henrykumahconsult.org)
+**GitHub:** [https://github.com/HenryKum23/Kubernetes_project](https://github.com/HenryKum23/Kubernetes_project)
 
 ---
 
@@ -13,10 +16,11 @@ A complete GitOps-based deployment of a Node.js/Express eshop application on AWS
 - [GitOps with ArgoCD](#gitops-with-argocd)
 - [CI/CD Pipeline](#cicd-pipeline)
 - [Application](#application)
+- [Secret Management](#secret-management)
+- [Networking & DNS](#networking--dns)
 - [Order of Operations](#order-of-operations)
 - [Security](#security)
-- [Automated Dependency Updates](#automated-dependency-updates)
-- [Addons Not Included](#addons-not-included)
+- [GitHub Secrets Required](#github-secrets-required)
 - [Estimated Cost](#estimated-cost)
 
 ---
@@ -27,7 +31,7 @@ This project provisions and deploys a production-grade Kubernetes cluster on AWS
 
 > **GitOps Principle:** The GitHub repository is the single source of truth. No manual `kubectl` commands are run after the initial bootstrap. All changes go through Git.
 
-The application is a Node.js/Express eshop that serves static HTML, CSS and JavaScript files from a `public/` directory. It listens on port 3000 and is containerised using Docker with a hardened multi-stage build.
+The application is a Node.js/Express eshop that serves static HTML, CSS, and JavaScript from a `public/` directory. It runs alongside an AI-powered chatbot service integrated with the Anthropic Claude API, with secrets managed at runtime through AWS Secrets Manager — never stored in Git.
 
 ---
 
@@ -36,114 +40,103 @@ The application is a Node.js/Express eshop that serves static HTML, CSS and Java
 | Layer | Technology | Purpose |
 |---|---|---|
 | Cloud Provider | AWS | All infrastructure hosted on AWS |
-| Container Orchestration | Amazon EKS (Kubernetes) | Runs and manages application pods |
+| Container Orchestration | Amazon EKS (Kubernetes 1.29) | Runs and manages application pods |
 | Cluster Provisioning | eksctl | Provisions the EKS cluster from YAML config |
-| Infrastructure as Code | AWS CloudFormation | Creates ECR repository |
-| Container Registry | AWS ECR | Stores Docker images |
-| GitOps / CD | ArgoCD | Syncs Git repo state to the cluster |
-| CI Pipeline | GitHub Actions | Builds, tests and pushes Docker images |
-| Web Server | Node.js + Express | Serves the eshop application |
-| DNS Management | AWS Route53 | Routes domain traffic to Load Balancer |
-| Domain Registrar | GoDaddy → Route53 | Custom domain nameservers delegated to AWS |
-| Security Scanning | Trivy | Scans Docker images for vulnerabilities |
-| Dependency Updates | Dependabot | Keeps npm, Docker and Actions up to date |
+| Container Registry | AWS ECR | Stores Docker images with vulnerability scanning |
+| GitOps / CD | ArgoCD | Syncs Git repo state to the cluster automatically |
+| CI Pipeline | GitHub Actions | Builds, tests, scans, and pushes Docker images |
+| Secret Management | External Secrets Operator + AWS Secrets Manager | Runtime secret injection — zero secrets in Git |
+| Load Balancing | AWS Load Balancer Controller | Creates and manages AWS ALB from Ingress resources |
+| DNS Management | AWS Route 53 + Namecheap | Custom domain with nameserver delegation to AWS |
+| SSL/TLS | AWS Certificate Manager | HTTPS with automatic HTTP → HTTPS redirect |
+| Security Scanning | Trivy | Blocks deployment on CRITICAL/HIGH CVEs |
+| AI Integration | Anthropic Claude API | Powers the eshop chatbot service |
 
 ---
 
 ## Repository Structure
 
 ```
-eks-production-app/
-├── cluster-config.yaml                  # eksctl cluster definition
-├── argocd-app-of-apps.yaml              # ArgoCD App of Apps — master controller
+eshop_project/
+├── cluster_config.yml                     # eksctl cluster definition
+├── argocd-app-of-apps.yml                 # ArgoCD App of Apps — root controller
 ├── .github/
 │   └── workflows/
-│       └── build-and-deploy.yaml        # GitHub Actions CI pipeline
+│       ├── infra.yml                      # Provisions cluster + installs ArgoCD
+│       └── build-and-deploy.yml           # CI pipeline — build, scan, push images
 ├── infrastructure/
-│   ├── ecr.yaml                         # CloudFormation — creates ECR repo
-│   └── README.md
+│   └── ecr.yml                            # ECR repository definition
 ├── bootstrap/
-│   └── argocd-install.yaml              # Installs ArgoCD into the cluster
-├── app/                                 # Node.js/Express eshop application
-│   ├── public/                          # HTML, CSS, JavaScript files
-│   ├── server.js                        # Express server
+│   └── argocd-install.yml                 # ArgoCD bootstrap manifest
+├── app/                                   # Eshop Node.js/Express application
+│   ├── public/                            # HTML, CSS, JavaScript files
+│   ├── server.js                          # Express server (port 3000)
 │   ├── package.json
 │   ├── package-lock.json
-│   ├── Dockerfile                       # Hardened multi-stage Docker image
-│   └── .dockerignore
-└── apps/
+│   ├── Dockerfile
+│   └── chatbot/                           # AI chatbot service
+│       ├── server.js                      # Chatbot Express server (port 4000)
+│       ├── package.json
+│       └── Dockerfile
+└── apps/                                  # ArgoCD watches this entire folder
     ├── aws-load-balancer-controller/
-    │   └── application.yaml             # ArgoCD app for ALB controller
+    │   └── application.yml                # ArgoCD app — installs ALB controller
     ├── cluster-autoscaler/
-    │   └── application.yaml             # ArgoCD app for autoscaler
-    └── my-app/
-        ├── namespace.yaml
-        ├── configmap.yaml
-        ├── deployment.yaml
-        ├── service.yaml
-        └── ingress.yaml
+    │   └── application.yml                # ArgoCD app — installs cluster autoscaler
+    ├── external-secrets/
+    │   └── application.yml                # ArgoCD app — installs ESO
+    └── my-app/                            # Eshop Kubernetes manifests
+        ├── application.yml                # ArgoCD app — deploys the eshop
+        ├── namespace.yml
+        ├── deployment.yml
+        ├── chatbot-deployment.yml
+        ├── service.yml
+        ├── chatbot-service.yml
+        ├── ingress.yml
+        ├── secret-store.yml               # ClusterSecretStore — connects to AWS Secrets Manager
+        └── external-secret.yml            # Pulls Anthropic API key into Kubernetes secret
 ```
 
 ---
 
 ## Infrastructure
 
-### ECR Repository — CloudFormation
-
-The ECR repository is created before the cluster using a CloudFormation template. This ensures the image registry exists before GitHub Actions attempts to push Docker images.
-
-| Feature | Configuration | Reason |
-|---|---|---|
-| Image Scanning | ScanOnPush: true | Every pushed image scanned for CVEs automatically |
-| Lifecycle Policy | Keep last 10 images | Older images deleted to control storage costs |
-| Encryption | AES256 | Images encrypted at rest |
-| Stack Name | eshop-ecr | CloudFormation manages resource lifecycle |
-
-```bash
-aws cloudformation deploy \
-  --template-file infrastructure/ecr.yaml \
-  --stack-name eshop-ecr \
-  --region us-east-1
-```
-
 ### EKS Cluster — eksctl
 
-The cluster is defined in `cluster-config.yaml` and provisioned using eksctl. It is lean but production-structured — right-sized for a lightweight application while following all production best practices.
+The cluster is defined in `cluster_config.yml` and provisioned via the `infra.yml` pipeline. It is lean but production-structured — right-sized for a lightweight application while following AWS best practices.
 
 | Configuration | Value | Reason |
 |---|---|---|
-| Kubernetes Version | 1.29 | Pinned version — no surprise upgrades |
+| Kubernetes Version | 1.29 | Pinned — no surprise upgrades |
 | Region | us-east-1 | AWS primary region |
 | Availability Zones | us-east-1a, us-east-1b | 2 AZs for HA without excessive cost |
-| Node Instance Type | t3.medium | 2 vCPU / 4GB RAM — sufficient for lightweight app |
-| Node Count | 2 desired, min 1, max 3 | Basic HA with auto-scaling |
+| Node Instance Type | t3.small | Cost-effective for a lightweight app |
+| Node Count | 2 desired, min 1, max 3 | Basic HA with cluster autoscaler |
 | Networking | Private subnets only | Nodes not directly accessible from internet |
-| NAT Gateway | Single | Cost-saving — one NAT gateway |
-| OIDC | Enabled | Required for IAM Roles for Service Accounts |
+| NAT Gateway | Single | Cost-saving for a project environment |
+| OIDC | Enabled | Required for IRSA — pods get AWS permissions without hardcoded keys |
 | SSH Access | Disabled | SSM Session Manager used instead |
 | CloudWatch Logs | api, audit, authenticator | Essential control plane logs only |
 | Log Retention | 7 days | Sufficient for project, reduces cost |
 
 ### IAM Service Accounts (IRSA)
 
-OIDC is enabled on the cluster to allow Kubernetes Service Accounts to assume AWS IAM roles. This is the secure, production-standard way for pods to interact with AWS services without hardcoding credentials.
+OIDC is enabled on the cluster so Kubernetes Service Accounts can assume AWS IAM roles directly. This is the production-standard approach — no hardcoded credentials anywhere.
 
-| Service Account | Namespace | AWS Permission | Used By |
-|---|---|---|---|
-| aws-load-balancer-controller | kube-system | Create/manage AWS Load Balancers | ALB Controller pod |
-| cluster-autoscaler | kube-system | Scale EC2 Auto Scaling Groups | Autoscaler pod |
-| ebs-csi-controller-sa | kube-system | Create/attach EBS volumes | EBS CSI Driver pod |
+| Service Account | Namespace | AWS Permission |
+|---|---|---|
+| aws-load-balancer-controller | kube-system | Create and manage AWS Load Balancers |
+| cluster-autoscaler | kube-system | Scale EC2 Auto Scaling Groups |
+| ebs-csi-controller-sa | kube-system | Create and attach EBS volumes |
+| external-secrets-sa | external-secrets | Read secrets from AWS Secrets Manager |
 
 ### EKS Addons
-
-Core cluster infrastructure is managed as EKS addons directly in `cluster-config.yaml`. These are distinct from application-level controllers managed by ArgoCD.
 
 | Addon | Purpose |
 |---|---|
 | vpc-cni | Pod networking — assigns VPC IP addresses to pods |
 | coredns | Internal DNS resolution within the cluster |
 | kube-proxy | Manages network rules on each node |
-| aws-ebs-csi-driver | Allows pods to use EBS volumes for persistent storage |
 
 ---
 
@@ -151,19 +144,22 @@ Core cluster infrastructure is managed as EKS addons directly in `cluster-config
 
 ### App of Apps Pattern
 
-The project uses the ArgoCD App of Apps pattern. A single master ArgoCD Application (`argocd-app-of-apps.yaml`) watches the `/apps` folder in the repository. Any Application manifest found there is automatically managed by ArgoCD.
+The entire cluster is bootstrapped from a single manifest — `argocd-app-of-apps.yml`. This tells ArgoCD to watch the `apps/` folder and manage everything inside it automatically.
 
 ```
-argocd-app-of-apps.yaml  (master — watches /apps folder)
+argocd-app-of-apps.yml  (root — watches apps/ folder)
         ↓
-apps/aws-load-balancer-controller/application.yaml
-apps/cluster-autoscaler/application.yaml
-apps/my-app/  (deployment, service, ingress, namespace, configmap)
+apps/aws-load-balancer-controller/application.yml  → installs ALB controller
+apps/cluster-autoscaler/application.yml            → installs cluster autoscaler
+apps/external-secrets/application.yml              → installs External Secrets Operator
+apps/my-app/application.yml                        → deploys eshop + chatbot
 ```
+
+After the initial bootstrap, no further `kubectl apply` commands are ever needed. Push to Git — ArgoCD handles the rest.
 
 ### Sync Policy
 
-All ArgoCD applications are configured with automated sync:
+All ArgoCD applications use automated sync:
 
 | Policy | Value | Effect |
 |---|---|---|
@@ -171,228 +167,190 @@ All ArgoCD applications are configured with automated sync:
 | automated.selfHeal | true | Manual changes in cluster are auto-reverted |
 | syncOptions.CreateNamespace | true | Namespaces created automatically if missing |
 
-### Namespace Isolation
-
-Every application runs in its own dedicated namespace:
-
-| Namespace | Contents |
-|---|---|
-| kube-system | All Kubernetes system components and controllers |
-| argocd | ArgoCD itself — manages all other applications |
-| my-app | The eshop application — deployment, service, ingress |
-
-Pods communicate across namespaces using Kubernetes internal DNS:
-```
-service-name.namespace.svc.cluster.local
-```
-
 ---
 
 ## CI/CD Pipeline
 
-GitHub Actions handles the CI side of the pipeline. It triggers automatically on every push to `main` when files in the `app/` folder change.
+### Two Separate Pipelines
 
-> **CI = GitHub Actions** (build, test, push image) **CD = ArgoCD** (deploy to cluster)
+| Pipeline | File | Trigger | Purpose |
+|---|---|---|---|
+| Infra | `infra.yml` | Manual (`workflow_dispatch`) | Provision cluster + install ArgoCD |
+| App | `build-and-deploy.yml` | Push to `app/**` | Build, scan, push images + update manifests |
 
-### Pipeline Steps
+> **CI = GitHub Actions** (build, test, scan, push)
+> **CD = ArgoCD** (detect manifest change → deploy automatically)
 
-| Step | Action | Why |
-|---|---|---|
-| 1 | Checkout code | Gets latest code from GitHub |
-| 2 | Setup Node.js 18 | Correct runtime version with dependency caching |
-| 3 | npm install + npm test | Broken code never reaches ECR or production |
-| 4 | Configure AWS credentials | Authenticates with AWS using GitHub Secrets |
-| 5 | Check ECR exists | Creates ECR via CloudFormation if not present |
-| 6 | Login to ECR | Authorises Docker to push to private registry |
-| 7 | Build Docker image | Packages app with git SHA and latest tags |
-| 8 | Trivy vulnerability scan | Blocks deployment if CRITICAL or HIGH CVEs found |
-| 9 | Push image to ECR | Stores verified image in registry |
-| 10 | Update deployment.yaml | Writes new image tag into Kubernetes manifest |
-| 11 | Commit and push [skip ci] | Triggers ArgoCD to deploy — [skip ci] prevents loop |
+### App Pipeline Steps
+
+| Step | Action |
+|---|---|
+| 1 | Checkout code |
+| 2 | Setup Node.js 18 with dependency caching |
+| 3 | Install and test eshop |
+| 4 | Install and test chatbot |
+| 5 | Configure AWS credentials |
+| 6 | Create ECR repositories if not exists |
+| 7 | Login to ECR |
+| 8 | Build eshop Docker image (tagged with git SHA + latest) |
+| 9 | Build chatbot Docker image |
+| 10 | Trivy scan — blocks on CRITICAL/HIGH CVEs |
+| 11 | Push both images to ECR |
+| 12 | Update image tags in deployment manifests |
+| 13 | Commit updated manifests `[skip ci]` → ArgoCD deploys |
 
 ### Quality Gate
 
 ```
-Code pushed
-    ↓
-Tests pass?         NO  → pipeline fails ❌
-    ↓ YES
-Image built
-    ↓
-Vulnerabilities?    YES → pipeline fails ❌
-    ↓ NO
-Image pushed to ECR
-    ↓
-ArgoCD deploys ✅
+Code pushed to app/
+        ↓
+Tests pass?          NO  → pipeline fails ❌
+        ↓ YES
+Images built
+        ↓
+CVEs found?          YES → pipeline fails ❌
+        ↓ NO
+Images pushed to ECR
+        ↓
+Manifests updated in Git
+        ↓
+ArgoCD detects change → deploys automatically ✅
 ```
-
-### Image Tagging Strategy
-
-| Tag | Example | Purpose |
-|---|---|---|
-| git SHA | my-app:a3f8c2d | Unique, immutable — enables precise rollback |
-| latest | my-app:latest | Always points to most recent successful build |
 
 ---
 
 ## Application
 
-### Hardened Dockerfile — Multi-Stage Build
+### Eshop (port 3000)
+A Node.js/Express application serving static HTML, CSS, and JavaScript from the `public/` directory.
 
-| Hardening Measure | Implementation | Security Benefit |
-|---|---|---|
-| Multi-stage build | Builder + final stage | No build tools in production image |
-| Non-root user | adduser appuser | Limits blast radius if container is compromised |
-| Read-only permissions | chmod -R 550 | App cannot modify its own files |
-| Strict dependencies | npm ci --only=production | Reproducible, no dev dependencies |
-| Health check | wget localhost:3000 | Kubernetes restarts unhealthy pods automatically |
-| Exec form CMD | CMD ["node", "server.js"] | No shell process — reduces attack surface |
+### AI Chatbot (port 4000)
+A separate Node.js service that integrates with the Anthropic Claude API to power an AI assistant embedded in the eshop. The Anthropic API key is never hardcoded — it is injected at runtime from AWS Secrets Manager via External Secrets Operator.
 
 ### Kubernetes Manifests
 
 | Manifest | Kind | Purpose |
 |---|---|---|
-| namespace.yaml | Namespace | Isolated environment for the eshop app |
-| configmap.yaml | ConfigMap | Stores configuration data for the app |
-| deployment.yaml | Deployment | Runs 2 replicas, pulls image from ECR |
-| service.yaml | Service (ClusterIP) | Internal routing to app pods on port 3000 |
-| ingress.yaml | Ingress | Exposes app via AWS ALB on yourdomain.com |
+| namespace.yml | Namespace | Isolated environment — my-app namespace |
+| deployment.yml | Deployment | Eshop — 2 replicas, pulls image from ECR |
+| chatbot-deployment.yml | Deployment | Chatbot — 1 replica, pulls image from ECR |
+| service.yml | Service (ClusterIP) | Internal routing to eshop pods on port 3000 |
+| chatbot-service.yml | Service (ClusterIP) | Internal routing to chatbot pods on port 4000 |
+| ingress.yml | Ingress | Exposes app via AWS ALB with SSL termination |
+| secret-store.yml | ClusterSecretStore | Connects ESO to AWS Secrets Manager |
+| external-secret.yml | ExternalSecret | Pulls Anthropic API key into Kubernetes secret |
+
+---
+
+## Secret Management
+
+Secrets are managed using the External Secrets Operator (ESO) with IRSA — a production-standard approach where no secret value ever touches Git.
+
+```
+AWS Secrets Manager (floma/anthropic-api-key)
+        ↓
+External Secrets Operator (IRSA — uses external-secrets-sa)
+        ↓
+ClusterSecretStore (cluster-wide — serves all namespaces)
+        ↓
+ExternalSecret (my-app namespace)
+        ↓
+Kubernetes Secret: anthropic-secret
+        ↓
+Chatbot pod reads ANTHROPIC_API_KEY at runtime
+```
+
+To store the API key in AWS Secrets Manager:
+```bash
+aws secretsmanager create-secret \
+  --name floma/anthropic-api-key \
+  --secret-string '{"ANTHROPIC_API_KEY":"your-key-here"}' \
+  --region us-east-1
+```
+
+---
+
+## Networking & DNS
 
 ### Traffic Flow
 
 ```
-User types yourdomain.com in browser
-    ↓
-GoDaddy nameservers → AWS Route53
-    ↓
-Route53 resolves to AWS Load Balancer
-    ↓
-AWS ALB (created by aws-load-balancer-controller)
-    ↓
-Ingress (routes by host: yourdomain.com)
-    ↓
-Service (ClusterIP — routes to pods on port 3000)
-    ↓
-Pod running Node.js/Express (server.js)
-    ↓
-Express serves index.html from public/ folder
-    ↓
+User visits https://henrykumahconsult.org
+        ↓
+Namecheap nameservers → AWS Route 53
+        ↓
+Route 53 A Alias record → AWS ALB
+        ↓
+ALB (HTTP → HTTPS redirect, ACM certificate)
+        ↓
+Ingress (host: henrykumahconsult.org)
+        ↓
+Service: eshop-service (ClusterIP, port 80 → 3000)
+        ↓
+Eshop pod (Node.js/Express, port 3000)
+        ↓
 User sees eshop ✅
 ```
+
+### DNS Setup
+
+| Component | Configuration |
+|---|---|
+| Domain Registrar | Namecheap |
+| DNS Provider | AWS Route 53 (nameservers delegated from Namecheap) |
+| Record Type | A Alias → ALB (recommended over CNAME for root domain) |
+| SSL Certificate | AWS Certificate Manager (DNS validation via Route 53) |
+| HTTP Redirect | ALB listener rule — 301 redirect HTTP → HTTPS |
 
 ---
 
 ## Order of Operations
 
-The following sequence must be followed exactly. Each step depends on the previous one being complete.
-
-| # | Step | Command | Run |
+| # | Step | How | When |
 |---|---|---|---|
-| 1 | Create ECR repository | `aws cloudformation deploy --template-file infrastructure/ecr.yaml --stack-name eshop-ecr --region us-east-1` | Once |
-| 2 | Provision EKS cluster | `eksctl create cluster -f cluster-config.yaml` | Once |
-| 3 | Update kubeconfig | `aws eks update-kubeconfig --name prod-cluster --region us-east-1` | Once |
-| 4 | Install ArgoCD | `kubectl apply -f bootstrap/argocd-install.yaml` | Once |
-| 5 | Apply App of Apps | `kubectl apply -f argocd-app-of-apps.yaml` | Once |
-| 6 | ArgoCD installs controllers | Automatic | Automatic |
-| 7 | ArgoCD deploys eshop | Automatic | Automatic |
-| 8 | Configure Route53 | Create hosted zone, update GoDaddy nameservers | Once |
+| 1 | Add GitHub Secrets | GitHub → Settings → Secrets | Once |
+| 2 | Store API key in AWS Secrets Manager | AWS CLI or Console | Once |
+| 3 | Trigger infra pipeline | Actions → Provision Infrastructure → Run workflow | Once |
+| 4 | ArgoCD installs all addons | Automatic via App of Apps | Automatic |
+| 5 | ArgoCD deploys eshop + chatbot | Automatic | Automatic |
+| 6 | Create Route 53 hosted zone | AWS CLI | Once |
+| 7 | Update Namecheap nameservers | Namecheap dashboard | Once |
+| 8 | Request ACM certificate | AWS CLI | Once |
 | 9 | Future deployments | `git push origin main` | Every deploy |
 
 ### Teardown
 ```bash
 # Delete the cluster when not in use to save costs
-eksctl delete cluster -f cluster-config.yaml
+eksctl delete cluster --name prod-cluster --region us-east-1
 
-# Delete ECR stack
-aws cloudformation delete-stack --stack-name eshop-ecr --region us-east-1
+# Verify deletion
+aws eks describe-cluster --name prod-cluster --region us-east-1
 ```
 
 ---
 
 ## Security
 
-### Security Measures
-
 | Area | Measure | Detail |
 |---|---|---|
 | Nodes | Private subnets | Worker nodes have no direct internet access |
 | SSH | Disabled | SSM Session Manager used instead |
-| Container | Non-root user | App runs as appuser, not root |
-| Container | Read-only filesystem | chmod 550 on all app files |
+| Secrets | External Secrets Operator + IRSA | No secrets ever stored in Git |
 | Images | Trivy scanning | CRITICAL/HIGH CVEs block deployment |
 | Images | ECR scan on push | Additional scan when image arrives in registry |
-| Credentials | GitHub Secrets | AWS keys never hardcoded in code |
 | IAM | IRSA | Pods get minimum required AWS permissions only |
+| TLS | ACM certificate | HTTPS enforced — HTTP redirected to HTTPS |
+| Credentials | GitHub Secrets | AWS keys never hardcoded in code |
 
-### GitHub Secrets Required
+---
 
-| Secret | Value |
+## GitHub Secrets Required
+
+| Secret | Description |
 |---|---|
-| `AWS_ACCESS_KEY_ID` | IAM user access key with ECR and CloudFormation permissions |
-| `AWS_SECRET_ACCESS_KEY` | Corresponding secret key |
-
----
-
-## Automated Dependency Updates
-
-Dependabot automatically opens Pull Requests when updates are available:
-
-| Ecosystem | Directory | What it watches | Schedule |
-|---|---|---|---|
-| npm | /app | All packages in package.json | Weekly |
-| github-actions | / | actions/checkout, aws-actions/* | Weekly |
-| docker | /app | node:18-alpine base image | Weekly |
-
----
-
-## Addons Not Included
-
-The following were deliberately excluded to keep the project lean and cost-effective. They represent the natural next steps when scaling to a fully enterprise-grade setup.
-
-### KMS Secrets Encryption
-Encrypts Kubernetes secrets stored in etcd at rest. Without it, secrets are only base64 encoded — not truly encrypted.
-**When to add:** When the application handles sensitive data that must meet compliance requirements (PCI-DSS, HIPAA, SOC2).
-
-### ExternalDNS
-Automatically manages Route53 DNS records based on Ingress annotations. Without it, DNS records must be updated manually whenever the Load Balancer URL changes.
-**When to add:** When you want fully automated DNS management tied to your domain.
-
-### Cert-Manager + TLS/HTTPS
-Automatically provisions and renews TLS certificates from Let's Encrypt, enabling HTTPS.
-**When to add:** Before making the application publicly accessible to real users. HTTPS is a baseline requirement for any production web application.
-
-### Prometheus + Grafana — Monitoring
-Full observability into cluster and application health — CPU, memory, request latency, error rates, pod restarts.
-**When to add:** As soon as the application goes live. Without monitoring there is no visibility into what is happening in the cluster.
-
-### Centralised Logging — Loki or ELK
-Aggregates logs from all pods into a single searchable interface.
-**When to add:** When debugging production issues where logs from multiple pods need to be correlated.
-
-| Option | Components | Best For |
-|---|---|---|
-| Loki Stack | Loki + Promtail + Grafana | Lightweight clusters already using Grafana |
-| ELK Stack | Elasticsearch + Logstash + Kibana | Large clusters with high log volume |
-
-### Velero — Backup and Disaster Recovery
-Backs up Kubernetes resources and persistent volumes to S3.
-**When to add:** When the cluster holds stateful workloads or data that must survive accidental deletion or cluster failure.
-
-### Horizontal Pod Autoscaler (HPA)
-Scales pod replicas based on CPU or memory usage. Works alongside Cluster Autoscaler — HPA scales pods, Cluster Autoscaler scales nodes.
-**When to add:** When the application receives variable traffic.
-
-### Network Policies
-Restricts which pods can communicate with each other. By default all pods across all namespaces can communicate freely.
-**When to add:** In a multi-team environment or when compliance mandates network segmentation.
-
-### Highly Available NAT Gateway
-This project uses a Single NAT Gateway. A full enterprise setup uses one NAT Gateway per AZ.
-
-| Configuration | Cost | Availability |
-|---|---|---|
-| Single NAT Gateway (this project) | ~$32/month | Single point of failure |
-| HighlyAvailable (3x NAT Gateway) | ~$96/month | No single point of failure |
+| `AWS_ACCESS_KEY_ID` | IAM user access key |
+| `AWS_SECRET_ACCESS_KEY` | IAM user secret key |
+| `GITHUB_TOKEN` | Auto-provided by GitHub Actions |
 
 ---
 
@@ -401,11 +359,12 @@ This project uses a Single NAT Gateway. A full enterprise setup uses one NAT Gat
 | Resource | Specification | Approx Monthly Cost |
 |---|---|---|
 | EKS Control Plane | Managed by AWS | $72.00 |
-| EC2 Worker Nodes | 2x t3.medium | $60.00 |
+| EC2 Worker Nodes | 2x t3.small | $30.00 |
 | NAT Gateway | Single | $32.00 |
 | EBS Volumes | 2x 20GB gp3 | $3.20 |
-| ECR Storage | Last 10 images | ~$1.00 |
+| ECR Storage | Images stored | ~$1.00 |
 | CloudWatch Logs | 7 day retention | ~$2.00 |
-| **Total (running 24/7)** | | **~$170/month** |
+| Route 53 | Hosted zone | ~$0.50 |
+| **Total (running 24/7)** | | **~$141/month** |
 
-> **Cost tip:** Delete the cluster when not in use. The EKS control plane alone costs $2.40/day. Running only during active development can reduce costs by 80% or more.
+> **Cost tip:** Delete the cluster when not actively using it. The EKS control plane alone costs $2.40/day. Running only during active development can reduce costs by 80% or more.
