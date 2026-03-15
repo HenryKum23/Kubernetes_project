@@ -5,12 +5,15 @@ metadata:
   namespace: my-app
   annotations:
     kubernetes.io/ingress.class: alb
-    alb.ingress.kubernetes.io/scheme: internet-facing       # Public facing load balancer
+    alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
-    external-dns.alpha.kubernetes.io/hostname: henrykumahconsult.org  # Replace with your domain
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:217340893387:certificate/d6a6d5d2-c05a-43df-bea1-37e839f470fb
+    external-dns.alpha.kubernetes.io/hostname: henrykumahconsult.org
 spec:
   rules:
-    - host: henrykumahconsult.org                              # Replace with your domain
+    - host: henrykumahconsult.org
       http:
         paths:
           - path: /
