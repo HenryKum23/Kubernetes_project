@@ -190,8 +190,8 @@ jobs:
           echo "=== All pods in my-app namespace ==="
           kubectl get pods -n my-app
           echo "=== Rollout status ==="
-          kubectl rollout status deployment/eshop -n my-app --timeout=120s
-          kubectl rollout status deployment/chatbot -n my-app --timeout=120s
+          kubectl rollout status deployment/eshop -n my-app --timeout=300s
+          kubectl rollout status deployment/chatbot -n my-app --timeout=300s
 
       # Step 7 — Print ingress address (ALB DNS name assigned by AWS)
       - name: Get ingress address
