@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: chatbot
-          image: 217340893387.dkr.ecr.us-east-1.amazonaws.com/eshop-chatbot:aa8f31d6af3056a0ad465d16abb37027bd3df3db
+          image: 217340893387.dkr.ecr.us-east-1.amazonaws.com/eshop-chatbot:45b4cb7f6e6894cb7cb9668bb0d67cc3a4306dd7
           ports:
             - containerPort: 4000
           env:
