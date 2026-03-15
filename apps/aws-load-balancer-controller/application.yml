@@ -10,15 +10,18 @@ spec:
   source:
     repoURL: https://aws.github.io/eks-charts
     chart: aws-load-balancer-controller
-    targetRevision: 1.14.0         # Fixed from 1.7.1 — correct existing version
+    targetRevision: 1.14.0
     helm:
       values: |
+        replicaCount: 1
         clusterName: prod-cluster
         serviceAccount:
           create: false
           name: aws-load-balancer-controller
+          annotations:
+            eks.amazonaws.com/role-arn: arn:aws:iam::217340893387:role/eksctl-prod-cluster-addon-iamserviceaccount-k-Role1-KiALSQ5oNM3L
         region: us-east-1
-        vpcId: ""                  # Auto-detected
+        vpcId: ""
   destination:
     server: https://kubernetes.default.svc
     namespace: kube-system
@@ -27,4 +30,4 @@ spec:
       prune: true
       selfHeal: true
     syncOptions:
-      - CreateNamespace=false      # kube-system already exists
+      - CreateNamespace=false

@@ -10,13 +10,15 @@ spec:
   source:
     repoURL: https://charts.external-secrets.io
     chart: external-secrets
-    targetRevision: 0.9.20         # Fixed from 0.9.11 — matches infra.yml version
+    targetRevision: 0.9.20
     helm:
       values: |
         installCRDs: true
         serviceAccount:
           create: false
           name: external-secrets-sa
+          annotations:
+            eks.amazonaws.com/role-arn: arn:aws:iam::217340893387:role/eksctl-prod-cluster-addon-iamserviceaccount-e-Role1-gMZblMQpkNEW
   destination:
     server: https://kubernetes.default.svc
     namespace: external-secrets

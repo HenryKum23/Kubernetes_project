@@ -10,7 +10,7 @@ spec:
   source:
     repoURL: https://kubernetes.github.io/autoscaler
     chart: cluster-autoscaler
-    targetRevision: 9.37.0         # Fixed from 9.29.0 — matches infra.yml version
+    targetRevision: 9.37.0
     helm:
       values: |
         autoDiscovery:
@@ -19,6 +19,8 @@ spec:
         serviceAccount:
           create: false
           name: cluster-autoscaler
+          annotations:
+            eks.amazonaws.com/role-arn: arn:aws:iam::217340893387:role/eksctl-prod-cluster-addon-iamserviceaccount-k-Role1-PQ88ZbkUP2RH
         extraArgs:
           balance-similar-node-groups: true
           skip-nodes-with-system-pods: false
