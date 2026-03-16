@@ -5,7 +5,8 @@ on:
     branches:
       - main
     paths:
-      - 'app/**'                 # Trigger when app code changes
+      - 'app/**'            # Trigger when eshop app code changes
+      - 'apps/**'            # Trigger when apps code changes
   workflow_dispatch:
 
 permissions:

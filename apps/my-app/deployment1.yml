@@ -1,28 +1,31 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: eshop
+  name: eshop-canary
   namespace: my-app
   labels:
     app: my-app
+    version: canary
 spec:
-  replicas: 2                          # 2 copies of your app for high availability
+  replicas: 1
   selector:
     matchLabels:
       app: my-app
+      version: canary
   template:
     metadata:
       labels:
         app: my-app
+        version: canary
     spec:
       containers:
         - name: eshop-container
-          image: 217340893387.dkr.ecr.us-east-1.amazonaws.com/my-app:275a825a409797b3dbd87e9621065533369fc039
+          image: 217340893387.dkr.ecr.us-east-1.amazonaws.com/my-app:c6384713008253c422615fdf41df05bd2e4f265d
           ports:
-            - containerPort: 3000     # Express app runs on port 3000
+            - containerPort: 3000
           resources:
             requests:
-              cpu: 50m                 # Very low CPU request — fine for a simple HTML app
+              cpu: 50m
               memory: 64Mi
             limits:
               cpu: 100m

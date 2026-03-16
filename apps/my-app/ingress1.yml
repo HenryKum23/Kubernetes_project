@@ -1,0 +1,40 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: my-app
+  namespace: my-app
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:217340893387:certificate/d6a6d5d2-c05a-43df-bea1-37e839f470fb
+    external-dns.alpha.kubernetes.io/hostname: henrykumahconsult.org
+    alb.ingress.kubernetes.io/actions.weighted-routing: |
+      {"type":"forward","forwardConfig":{"targetGroups":[
+        {"serviceName":"eshop-service","servicePort":"80","weight":90},
+        {"serviceName":"eshop-canary-service","servicePort":"80","weight":10}
+      ]}}
+spec:
+  rules:
+    - host: henrykumahconsult.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: weighted-routing
+                port:
+                  name: use-annotation
+    - host: www.henrykumahconsult.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: weighted-routing
+                port:
+                  name: use-annotation
