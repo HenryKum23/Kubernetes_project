@@ -16,6 +16,8 @@ spec:
         autoDiscovery:
           clusterName: prod-cluster
         awsRegion: us-east-1
+        rbac:
+          create: false
         serviceAccount:
           create: false
           name: cluster-autoscaler
@@ -32,4 +34,4 @@ spec:
       prune: true
       selfHeal: true
     syncOptions:
-      - CreateNamespace=false
+      - CreateNamespace: false
