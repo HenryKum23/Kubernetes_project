@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: cluster-workernode-autoscaler
+  name: cluster-autoscaler          # ← changed from cluster-workernode-autoscaler
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
@@ -12,8 +12,8 @@ spec:
     chart: cluster-autoscaler
     targetRevision: 9.37.0
     helm:
+      releaseName: cluster-autoscaler  # ← forces Helm release name
       values: |
-        fullnameOverride: cluster-autoscaler
         autoDiscovery:
           clusterName: prod-cluster
         awsRegion: us-east-1
@@ -35,4 +35,4 @@ spec:
       prune: true
       selfHeal: true
     syncOptions:
-      - CreateNamespace: false
+      - CreateNamespace=false
