@@ -12,6 +12,8 @@ spec:
     repoURL: https://github.com/HenryKum23/Kubernetes_project.git  # Replace with your repo URL
     targetRevision: main
     path: apps  # ArgoCD watches everything inside the /apps folder
+    directory:
+      recurse: true # Recursively watch all subdirectories (for multiple apps)
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
