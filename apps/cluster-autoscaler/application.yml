@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: cluster-autoscaler          # ← changed from cluster-workernode-autoscaler
+  name: cluster-autoscaler
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
@@ -12,16 +12,16 @@ spec:
     chart: cluster-autoscaler
     targetRevision: 9.37.0
     helm:
-      releaseName: cluster-autoscaler  # ← forces Helm release name
+      releaseName: cluster-autoscaler
       values: |
         autoDiscovery:
           clusterName: prod-cluster
         awsRegion: us-east-1
         rbac:
-          create: false
+          create: true
         serviceAccount:
-          create: false
-          name: cluster-autoscaler
+          create: true
+          name: cluster-autoscaler-aws-cluster-autoscaler
           annotations:
             eks.amazonaws.com/role-arn: arn:aws:iam::217340893387:role/eksctl-prod-cluster-addon-iamserviceaccount-k-Role1-PQ88ZbkUP2RH
         extraArgs:
