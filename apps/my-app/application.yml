@@ -20,3 +20,4 @@ spec:
       selfHeal: true               # Auto-corrects any manual changes in cluster
     syncOptions:
       - CreateNamespace=true       # Creates my-app namespace if it doesn't exist
+      - ServerSideApply=true    # Use Server-Side Apply for better handling of resource updates and conflicts
