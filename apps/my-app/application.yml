@@ -13,6 +13,7 @@ spec:
       jsonPointers:
         - /status
         - /metadata/resourceVersion
+        - /spec/target/deletionPolicy
     - group: external-secrets.io
       kind: ClusterSecretStore
       jsonPointers:
