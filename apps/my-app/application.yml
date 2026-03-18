@@ -35,4 +35,4 @@ spec:
     syncOptions:
       - CreateNamespace=true       # Creates my-app namespace if it doesn't exist
       - ServerSideApply=true       # Use Server-Side Apply for better handling of resource updates and conflicts
-      - Replace=true               # Force resource replacement if update fails
+      - RespectIgnoreDifferences=true # Don't override ignored fields with default values on first sync
