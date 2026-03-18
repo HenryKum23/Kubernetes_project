@@ -1,38 +1,38 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: eshop
+  name: eshop-secrets
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
-  ignoreDifferences:
-  - group: external-secrets.io
-    kind: ExternalSecret
-    jsonPointers:
-      - /status
-      - /metadata/resourceVersion
-      - /metadata/managedFields
-      - /spec/target/deletionPolicy
-  - group: external-secrets.io
-    kind: ClusterSecretStore
-    jsonPointers:
-      - /status
-      - /metadata/resourceVersion
-      - /metadata/managedFields
   source:
     repoURL: https://github.com/HenryKum23/Kubernetes_project.git
     targetRevision: main
-    path: apps/my-app              # ArgoCD watches everything in this folder
+    path: apps/my-app-secrets
   destination:
     server: https://kubernetes.default.svc
     namespace: my-app
   syncPolicy:
     automated:
-      prune: true                  # Removes resources deleted from Git
-      selfHeal: true               # Auto-corrects any manual changes in cluster
+      prune: true
+      selfHeal: true
     syncOptions:
-      - CreateNamespace=true       # Creates my-app namespace if it doesn't exist
-      - ServerSideApply=true       # Use Server-Side Apply for better handling of resource updates and conflicts
-      - RespectIgnoreDifferences=true # Don't override ignored fields with default values on first sync
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  ignoreDifferences:
+    - group: external-secrets.io
+      kind: ExternalSecret
+      jsonPointers:
+        - /status
+        - /metadata/resourceVersion
+        - /metadata/managedFields
+        - /spec/target/deletionPolicy
+    - group: external-secrets.io
+      kind: ClusterSecretStore
+      jsonPointers:
+        - /status
+        - /metadata/resourceVersion
+        - /metadata/managedFields
