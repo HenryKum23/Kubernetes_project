@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: eshop-container
-          image: 217340893387.dkr.ecr.us-east-1.amazonaws.com/my-app:d9436097f4d6135162721c61d4647cb1b8c0ca6a
+          image: 217340893387.dkr.ecr.us-east-1.amazonaws.com/my-app:c9e6bf0c6bea7ff273fb8daf1fbf9e4ae53a345c
           ports:
             - containerPort: 3000     # Express app runs on port 3000
           resources:
