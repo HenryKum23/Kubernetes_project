@@ -7,10 +7,21 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
+  ignoreDifferences:
+    - group: external-secrets.io
+      kind: ExternalSecret
+      jsonPointers:
+        - /status
+        - /metadata/resourceVersion
+    - group: external-secrets.io
+      kind: ClusterSecretStore
+      jsonPointers:
+        - /status
+        - /metadata/resourceVersion
   source:
     repoURL: https://github.com/HenryKum23/Kubernetes_project.git
     targetRevision: main
-    path: apps/my-app              # ArgoCD watches everything in this folder.
+    path: apps/my-app              # ArgoCD watches everything in this folder
   destination:
     server: https://kubernetes.default.svc
     namespace: my-app
@@ -20,5 +31,5 @@ spec:
       selfHeal: true               # Auto-corrects any manual changes in cluster
     syncOptions:
       - CreateNamespace=true       # Creates my-app namespace if it doesn't exist
-      - ServerSideApply=true    # Use Server-Side Apply for better handling of resource updates and conflicts
-      - Replace=true          # Force resource replacement if update fails (use with caution, as it may cause downtime)
+      - ServerSideApply=true       # Use Server-Side Apply for better handling of resource updates and conflicts
+      - Replace=true               # Force resource replacement if update fails
