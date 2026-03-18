@@ -8,17 +8,19 @@ metadata:
 spec:
   project: default
   ignoreDifferences:
-    - group: external-secrets.io
-      kind: ExternalSecret
-      jsonPointers:
-        - /status
-        - /metadata/resourceVersion
-        - /spec/target/deletionPolicy
-    - group: external-secrets.io
-      kind: ClusterSecretStore
-      jsonPointers:
-        - /status
-        - /metadata/resourceVersion
+  - group: external-secrets.io
+    kind: ExternalSecret
+    jsonPointers:
+      - /status
+      - /metadata/resourceVersion
+      - /metadata/managedFields
+      - /spec/target/deletionPolicy
+  - group: external-secrets.io
+    kind: ClusterSecretStore
+    jsonPointers:
+      - /status
+      - /metadata/resourceVersion
+      - /metadata/managedFields
   source:
     repoURL: https://github.com/HenryKum23/Kubernetes_project.git
     targetRevision: main
