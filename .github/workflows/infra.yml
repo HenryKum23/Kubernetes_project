@@ -87,7 +87,7 @@ jobs:
           aws eks update-kubeconfig --name prod-cluster --region us-east-1
 
       - name: Install Helm
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@v5
         with:
           version: latest
 
@@ -145,7 +145,7 @@ jobs:
           aws eks update-kubeconfig --name prod-cluster --region us-east-1
 
       - name: Install Helm
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@v5
         with:
           version: latest
 
