@@ -367,3 +367,115 @@ aws eks describe-cluster --name prod-cluster --region us-east-1
 | Route 53 | Hosted zone | ~$0.50 |
 | **Total (running 24/7)** | | **~$141/month** |
 
+---
+
+# Bootstrap Layer
+
+This folder is run **once** by a senior engineer before anything else in the project.
+It creates the foundation that everything else depends on.
+
+---
+
+## What it creates
+
+| Resource | Purpose |
+|---|---|
+| S3 bucket | Stores Terraform state for the main infrastructure |
+| DynamoDB table | Prevents concurrent Terraform applies (state locking) |
+| GitHub OIDC provider | Allows GitHub Actions to authenticate to AWS without keys |
+| GitHub Actions IAM role | The role your pipeline assumes — scoped to your repo only |
+
+---
+
+## Prerequisites
+
+You need AWS credentials with admin permissions on your local machine.
+This is the **only time** admin credentials are needed in this project.
+
+```bash
+# Verify your credentials are working
+aws sts get-caller-identity
+```
+
+You should see your account ID, user ID, and ARN.
+
+---
+
+## How to run
+
+```bash
+# Step 1 — move into the bootstrap folder
+cd bootstrap
+
+# Step 2 — initialise Terraform with local state
+terraform init
+
+# Step 3 — preview what will be created
+terraform plan
+
+# Step 4 — apply (takes about 1-2 minutes)
+terraform apply
+```
+
+Type `yes` when prompted.
+
+---
+
+## After apply completes
+
+Terraform prints outputs like this:
+
+```
+github_actions_role_arn = "arn:aws:iam::123456789012:role/henry-eks-github-actions-role"
+state_bucket_name       = "henry-eks-terraform-state-123456789012"
+dynamodb_table_name     = "henry-eks-terraform-locks"
+next_steps              = ...
+```
+
+**Do these four things immediately:**
+
+**1. Add the role ARN to GitHub Secrets**
+- Go to your repo on GitHub
+- Settings → Secrets and variables → Actions → New repository secret
+- Name: `AWS_ROLE_ARN`
+- Value: paste the `github_actions_role_arn` output
+
+**2. Update infrastructure/backend.tf**
+```hcl
+backend "s3" {
+  bucket         = "<state_bucket_name output>"
+  dynamodb_table = "<dynamodb_table_name output>"
+  key            = "production/eks/terraform.tfstate"
+  region         = "us-east-1"
+  encrypt        = true
+}
+```
+
+**3. Save the state file securely**
+The `bootstrap/terraform.tfstate` file is gitignored.
+Store it in one of these places:
+- Company password manager (1Password, Bitwarden)
+- Encrypted external drive
+- A manually created private S3 bucket
+
+**4. Never run terraform destroy in this folder**
+Destroying the S3 bucket will delete all Terraform state.
+Destroying the OIDC provider will break all pipelines.
+
+---
+
+## If you need to re-run bootstrap on a new machine
+
+```bash
+# If you still have the terraform.tfstate file
+cd bootstrap
+terraform init
+terraform plan   # Should show no changes if nothing changed
+
+# If you lost the state file
+# Re-import the existing resources into state
+terraform import aws_s3_bucket.terraform_state <bucket-name>
+terraform import aws_dynamodb_table.terraform_locks <table-name>
+terraform import aws_iam_openid_connect_provider.github <oidc-provider-arn>
+terraform import aws_iam_role.github_actions <role-name>
+```
