@@ -1,0 +1,23 @@
+# =============================================================
+# bootstrap/.gitignore
+# The bootstrap state file must NEVER go to GitHub
+# It contains your AWS account details and resource IDs
+# =============================================================
+
+# Terraform state — store this securely offline
+terraform.tfstate
+terraform.tfstate.backup
+
+# Terraform working directory
+.terraform/
+.terraform.lock.hcl
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
