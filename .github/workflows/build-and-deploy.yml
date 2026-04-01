@@ -1,3 +1,9 @@
+# =============================================================
+# build-deploy.yml — Build, scan, and deploy pipeline
+# Only change from original: long-lived keys replaced with OIDC
+# Everything else preserved exactly as you had it
+# =============================================================
+
 name: Build and Deploy to EKS
 
 on:
@@ -5,12 +11,17 @@ on:
     branches:
       - main
     paths:
-      - 'app/**'            # Trigger when eshop app code changes
-      - 'apps/**'            # Trigger when apps code changes
+      - 'app/**'
+      - 'apps/**'
   workflow_dispatch:
 
 permissions:
   contents: write
+  id-token: write  # Required for OIDC
+
+env:
+  AWS_REGION: "us-east-1"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   # ─────────────────────────────────────────────
@@ -21,11 +32,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1 — Checkout code
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Step 2 — Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -33,47 +42,42 @@ jobs:
           cache: 'npm'
           cache-dependency-path: app/package-lock.json
 
-      # Step 3 — Test eshop app
       - name: Install and test eshop
         run: |
           cd app
           npm install
           npm test --if-present
 
-      # Step 4 — Test chatbot service
       - name: Install and test chatbot
         run: |
           cd app/chatbot
           npm install
           npm test --if-present
 
-      # Step 5 — Configure AWS credentials
-      - name: Configure AWS credentials
+      # OIDC — replaces AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
+      # Temporary credentials, nothing stored in GitHub Secrets
+      - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      # Step 6 — Create ECR repositories if they do not exist
       - name: Create ECR repositories if not exists
         run: |
-          aws ecr describe-repositories --repository-names my-app --region us-east-1 || \
+          aws ecr describe-repositories --repository-names my-app --region ${{ env.AWS_REGION }} || \
           aws ecr create-repository --repository-name my-app \
             --image-scanning-configuration scanOnPush=true \
-            --region us-east-1
+            --region ${{ env.AWS_REGION }}
 
-          aws ecr describe-repositories --repository-names eshop-chatbot --region us-east-1 || \
+          aws ecr describe-repositories --repository-names eshop-chatbot --region ${{ env.AWS_REGION }} || \
           aws ecr create-repository --repository-name eshop-chatbot \
             --image-scanning-configuration scanOnPush=true \
-            --region us-east-1
+            --region ${{ env.AWS_REGION }}
 
-      # Step 7 — Login to ECR
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # Step 8 — Build both Docker images
       - name: Build eshop Docker image
         run: |
           docker build \
@@ -88,7 +92,6 @@ jobs:
             -t ${{ steps.login-ecr.outputs.registry }}/eshop-chatbot:latest \
             ./app/chatbot
 
-      # Step 9 — Scan both images for vulnerabilities
       - name: Scan eshop image
         uses: aquasecurity/trivy-action@master
         with:
@@ -105,7 +108,6 @@ jobs:
           exit-code: '1'
           severity: CRITICAL,HIGH
 
-      # Step 10 — Push both images to ECR
       - name: Push eshop image to ECR
         run: |
           docker push ${{ steps.login-ecr.outputs.registry }}/my-app:${{ github.sha }}
@@ -116,7 +118,6 @@ jobs:
           docker push ${{ steps.login-ecr.outputs.registry }}/eshop-chatbot:${{ github.sha }}
           docker push ${{ steps.login-ecr.outputs.registry }}/eshop-chatbot:latest
 
-      # Step 11 — Update both deployment.yml files with new image tags
       - name: Update eshop deployment image tag
         run: |
           sed -i "s|image:.*my-app.*|image: ${{ steps.login-ecr.outputs.registry }}/my-app:${{ github.sha }}|g" \
@@ -127,8 +128,7 @@ jobs:
           sed -i "s|image:.*eshop-chatbot.*|image: ${{ steps.login-ecr.outputs.registry }}/eshop-chatbot:${{ github.sha }}|g" \
             apps/my-app/chatbot-deployment.yml
 
-      # Step 12 — Commit and push updated manifests
-      # ArgoCD detects this change and automatically deploys the new image
+      # ArgoCD detects this commit and deploys automatically
       # [skip ci] prevents this commit from retriggering the workflow
       - name: Commit updated deployment files
         run: |

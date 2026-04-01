@@ -1,182 +1,152 @@
+# =============================================================
+# infra.yml — Infrastructure pipeline
+# Replaces eksctl with Terraform
+# Replaces long-lived AWS keys with OIDC federation
+# Plan on PR, apply on merge to main
+# =============================================================
+
 name: Provision Infrastructure
 
 on:
-  workflow_dispatch:             # Manual trigger only — intentional, controlled infra changes
+  pull_request:
+    branches: [main]
+    paths:
+      - 'infrastructure/**'
+  push:
+    branches: [main]
+    paths:
+      - 'infrastructure/**'
+  workflow_dispatch: # Keep manual trigger for emergency use
 
+# OIDC requires this permission
 permissions:
   contents: read
+  id-token: write   # This is what allows GitHub to assume the AWS IAM role
+  pull-requests: write # Allows posting plan output as PR comment
+
+env:
+  TF_VERSION: "1.7.0"
+  WORKING_DIR: "./infrastructure"
+  AWS_REGION: "us-east-1"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   # ─────────────────────────────────────────────
-  # JOB 1 — Provision EKS Cluster
+  # JOB 1 — Terraform Plan (runs on every PR)
+  # Engineer reviews the plan before anything changes
   # ─────────────────────────────────────────────
-  provision-cluster:
-    name: Provision EKS Cluster
+  plan:
+    name: Terraform Plan
     runs-on: ubuntu-latest
-
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    if: github.event_name == 'pull_request'
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
+      # OIDC — no AWS keys stored anywhere
+      # GitHub assumes the IAM role directly using a temporary token
+      - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Inject AWS Account ID into cluster config
-        run: |
-          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          sed -i "s/YOUR_ACCOUNT_ID/${ACCOUNT_ID}/g" cluster_config.yml
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Install eksctl
-        run: |
-          curl --silent --location \
-            "https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_Linux_amd64.tar.gz" \
-            | tar xz -C /tmp
-          sudo mv /tmp/eksctl /usr/local/bin
-          eksctl version
+      - name: Terraform Format Check
+        working-directory: ${{ env.WORKING_DIR }}
+        run: terraform fmt -check -recursive
 
-      - name: Create EKS cluster if not exists
-        run: |
-          if ! aws eks describe-cluster --name prod-cluster --region us-east-1 2>/dev/null; then
-            echo "Cluster not found — creating..."
-            eksctl create cluster -f cluster_config.yml
-          else
-            echo "Cluster already exists — skipping creation"
-          fi
+      - name: Terraform Init
+        working-directory: ${{ env.WORKING_DIR }}
+        run: terraform init
 
-      - name: Scale nodegroup to desired capacity
-        run: |
-          eksctl scale nodegroup \
-            --cluster=prod-cluster \
-            --name=app-nodes \
-            --nodes=2 \
-            --nodes-min=1 \
-            --nodes-max=3 \
-            --region=us-east-1
+      - name: Terraform Validate
+        working-directory: ${{ env.WORKING_DIR }}
+        run: terraform validate
 
-      - name: Update kubeconfig
+      - name: Terraform Plan
+        id: plan
+        working-directory: ${{ env.WORKING_DIR }}
         run: |
-          aws eks update-kubeconfig --name prod-cluster --region us-east-1
+          terraform plan \
+            -out=tfplan \
+            -no-color \
+            2>&1 | tee plan_output.txt
+        continue-on-error: true
+
+      # Post the plan output as a PR comment
+      # Engineer sees exactly what will change before approving
+      - name: Post plan to PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('${{ env.WORKING_DIR }}/plan_output.txt', 'utf8');
+            const maxLength = 65000;
+            const truncated = plan.length > maxLength
+              ? plan.substring(0, maxLength) + '\n... [truncated]'
+              : plan;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## Terraform Plan 📋\n\`\`\`hcl\n${truncated}\n\`\`\`\n*Triggered by @${{ github.actor }}*`
+            });
+
+      - name: Fail if plan failed
+        if: steps.plan.outcome == 'failure'
+        run: exit 1
 
   # ─────────────────────────────────────────────
-  # JOB 2 — Install AWS Load Balancer Controller
-  # Must be installed before ArgoCD since ArgoCD
-  # needs the ALB ingress to expose its UI
+  # JOB 2 — Terraform Apply (runs on merge to main)
+  # Requires manual approval via GitHub Environment
   # ─────────────────────────────────────────────
-  install-lbc:
-    name: Install Load Balancer Controller
+  apply:
+    name: Terraform Apply
     runs-on: ubuntu-latest
-    needs: provision-cluster
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    environment: production  # Requires manual approval in GitHub Settings
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
+      # OIDC — no AWS keys stored anywhere
+      - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
 
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        working-directory: ${{ env.WORKING_DIR }}
+        run: terraform init
+
+      - name: Terraform Apply
+        working-directory: ${{ env.WORKING_DIR }}
+        run: |
+          terraform apply \
+            -auto-approve \
+            -no-color
+
+      # Update kubeconfig so subsequent steps can run kubectl if needed
       - name: Update kubeconfig
         run: |
-          aws eks update-kubeconfig --name prod-cluster --region us-east-1
+          aws eks update-kubeconfig \
+            --name prod-cluster \
+            --region ${{ env.AWS_REGION }}
 
-      - name: Install Helm
-        uses: azure/setup-helm@v4
-        with:
-          version: latest
-
-      - name: Install AWS Load Balancer Controller
+      - name: Verify cluster is healthy
         run: |
-          helm repo add eks https://aws.github.io/eks-charts
-          helm repo update
-          helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller \
-            -n kube-system \
-            --version 1.14.0 \
-            --set clusterName=prod-cluster \
-            --set serviceAccount.create=false \
-            --set serviceAccount.name=aws-load-balancer-controller
-
-      - name: Wait for LBC webhook to be ready
-        run: |
-          echo "Waiting for Load Balancer Controller webhook to be ready..."
-          for i in $(seq 1 40); do
-            READY=$(kubectl get endpoints aws-load-balancer-webhook-service \
-              -n kube-system \
-              -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null)
-            if [ -n "$READY" ]; then
-              echo "Webhook is ready — endpoints: $READY"
-              exit 0
-            fi
-            echo "Attempt $i/40 — webhook not ready yet, retrying in 15s..."
-            sleep 15
-          done
-          echo "Webhook did not become ready in time"
-          exit 1
-
-  # ─────────────────────────────────────────────
-  # JOB 3 — Install ArgoCD
-  # ArgoCD takes over managing all other addons
-  # and the app after this point via App of Apps
-  # ─────────────────────────────────────────────
-  install-argocd:
-    name: Install ArgoCD
-    runs-on: ubuntu-latest
-    needs: install-lbc
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
-
-      - name: Update kubeconfig
-        run: |
-          aws eks update-kubeconfig --name prod-cluster --region us-east-1
-
-      - name: Install Helm
-        uses: azure/setup-helm@v4
-        with:
-          version: latest
-
-      # Install ArgoCD via Helm — pinned for production stability
-      - name: Install ArgoCD
-        run: |
-          helm repo add argo https://argoproj.github.io/argo-helm
-          helm repo update
-          helm upgrade --install argocd argo/argo-cd \
-            -n argocd --create-namespace \
-            --version 7.7.11 \
-            --set server.service.type=ClusterIP \
-            --set configs.params."server\.insecure"=true
-
-      # Wait for ArgoCD server to be fully ready
-      - name: Wait for ArgoCD to be ready
-        run: |
-          kubectl rollout status deployment/argocd-server \
-            -n argocd --timeout=300s
-
-      # Apply the App of Apps — single manifest that tells ArgoCD
-      # to watch the apps/ folder and manage everything inside it
-      - name: Apply App of Apps
-        run: |
-          kubectl apply -f argocd-app-of-apps.yml
-
-      # Verify ArgoCD is running and app of apps is registered
-      - name: Verify ArgoCD
-        run: |
-          kubectl get pods -n argocd
-          kubectl get applications -n argocd
+          kubectl get nodes
+          kubectl get pods -A
