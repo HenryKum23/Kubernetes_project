@@ -42,7 +42,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # OIDC — no AWS keys stored anywhere
       # GitHub assumes the IAM role directly using a temporary token
@@ -114,7 +114,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # OIDC — no AWS keys stored anywhere
       - name: Configure AWS credentials via OIDC
