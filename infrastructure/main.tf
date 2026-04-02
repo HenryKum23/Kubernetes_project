@@ -27,7 +27,7 @@ terraform {
   # REMOTE STATE — stored in the S3 bucket that bootstrap created
   # bucket and dynamodb_table values come from bootstrap outputs
   backend "s3" {
-    bucket         = "henry-eks-terraform-state-YOUR_ACCOUNT_ID"  # from bootstrap output
+    bucket         = "henry-eks-terraform-state-810626480238"  # from bootstrap output
     key            = "production/eks/terraform.tfstate"
     region         = "us-east-1"
     encrypt        = true
