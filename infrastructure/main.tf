@@ -5,35 +5,11 @@
 # STATE:   Stored REMOTELY in S3 (created by bootstrap)
 # CREATES: VPC, EKS cluster, node groups, providers
 # DEPENDS ON: bootstrap must have run first
+# ==============================================================
+
 # =============================================================
-
-terraform {
-  required_version = ">= 1.7.0"
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-    helm = {
-      source  = "hashicorp/helm"
-      version = "~> 2.12"
-    }
-    kubernetes = {
-      source  = "hashicorp/kubernetes"
-      version = "~> 2.27"
-    }
-  }
-
-  # REMOTE STATE — stored in the S3 bucket that bootstrap created
-  # bucket and dynamodb_table values come from bootstrap outputs
-  backend "s3" {
-    bucket         = "henry-eks-terraform-state-810626480238"  # from bootstrap output
-    key            = "production/eks/terraform.tfstate"
-    region         = "us-east-1"
-    encrypt        = true
-    dynamodb_table = "henry-eks-terraform-locks"                  # from bootstrap output
-  }
-}
+# main.tf — VPC and EKS cluster
+# ============================================================
 
 # ── Providers ─────────────────────────────────────────────────
 
