@@ -87,6 +87,8 @@ resource "aws_iam_role_policy" "github_actions" {
           "iam:CreatePolicy",
           "iam:DeletePolicy",
           "iam:GetPolicy",
+          "iam:TagPolicy",
+          "iam:UntagPolicy",
           "iam:GetPolicyVersion",
           "iam:ListPolicyVersions",
           "iam:CreatePolicyVersion",
