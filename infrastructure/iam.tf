@@ -9,14 +9,8 @@
 # GitHub assumes this role directly — no keys stored anywhere
 # =============================================================
 
-# Trust the GitHub OIDC provider
-data "aws_iam_openid_connect_provider" "github" {
-  url = "https://token.actions.githubusercontent.com"
-}
-
-# If the GitHub OIDC provider doesn't exist yet, create it
+# Create the GitHub OIDC provider
 resource "aws_iam_openid_connect_provider" "github" {
-  
   url = "https://token.actions.githubusercontent.com"
 
   client_id_list = ["sts.amazonaws.com"]
@@ -42,7 +36,6 @@ resource "aws_iam_role" "github_actions" {
         Action = "sts:AssumeRoleWithWebIdentity"
         Condition = {
           StringLike = {
-            # Scope to your specific repository only
             "token.actions.githubusercontent.com:sub" = "repo:HenryKum23/Kubernetes_project:*"
           }
           StringEquals = {
@@ -63,23 +56,19 @@ resource "aws_iam_role_policy" "github_actions" {
     Version = "2012-10-17"
     Statement = [
       {
-        # EKS — create, update, describe cluster
+        Sid    = "EKS"
         Effect = "Allow"
-        Action = [
-          "eks:*"
-        ]
+        Action = ["eks:*"]
         Resource = "*"
       },
       {
-        # EC2 — needed for VPC and node group management
+        Sid    = "EC2"
         Effect = "Allow"
-        Action = [
-          "ec2:*"
-        ]
+        Action = ["ec2:*"]
         Resource = "*"
       },
       {
-        # IAM — needed for creating IRSA roles
+        Sid    = "IAMForIRSARoles"
         Effect = "Allow"
         Action = [
           "iam:CreateRole",
@@ -94,15 +83,25 @@ resource "aws_iam_role_policy" "github_actions" {
           "iam:ListAttachedRolePolicies",
           "iam:PassRole",
           "iam:TagRole",
+          "iam:UntagRole",
+          "iam:CreatePolicy",
+          "iam:DeletePolicy",
+          "iam:GetPolicy",
+          "iam:GetPolicyVersion",
+          "iam:ListPolicyVersions",
+          "iam:CreatePolicyVersion",
+          "iam:DeletePolicyVersion",
           "iam:CreateOpenIDConnectProvider",
           "iam:GetOpenIDConnectProvider",
           "iam:DeleteOpenIDConnectProvider",
-          "iam:TagOpenIDConnectProvider"
+          "iam:TagOpenIDConnectProvider",
+          "iam:ListOpenIDConnectProviders",
+          "iam:CreateServiceLinkedRole"
         ]
         Resource = "*"
       },
       {
-        # S3 — Terraform state backend
+        Sid    = "S3State"
         Effect = "Allow"
         Action = ["s3:*"]
         Resource = [
@@ -111,31 +110,50 @@ resource "aws_iam_role_policy" "github_actions" {
         ]
       },
       {
-        # DynamoDB — Terraform state locking
+        Sid    = "DynamoDB"
         Effect = "Allow"
         Action = [
           "dynamodb:GetItem",
           "dynamodb:PutItem",
-          "dynamodb:DeleteItem"
+          "dynamodb:DeleteItem",
+          "dynamodb:DescribeTable"
         ]
         Resource = "arn:aws:dynamodb:us-east-1:*:table/henry-eks-terraform-locks"
       },
       {
-        # ECR — push and pull images
+        Sid    = "ECR"
         Effect = "Allow"
         Action = ["ecr:*"]
         Resource = "*"
       },
       {
-        # CloudWatch — cluster logging
+        Sid    = "CloudWatch"
         Effect = "Allow"
         Action = ["logs:*"]
         Resource = "*"
       },
       {
-        # Auto Scaling — node groups
-        Effect   = "Allow"
-        Action   = ["autoscaling:*"]
+        Sid    = "AutoScaling"
+        Effect = "Allow"
+        Action = ["autoscaling:*"]
+        Resource = "*"
+      },
+      {
+        Sid    = "KMS"
+        Effect = "Allow"
+        Action = ["kms:*"]
+        Resource = "*"
+      },
+      {
+        Sid    = "ELB"
+        Effect = "Allow"
+        Action = ["elasticloadbalancing:*"]
+        Resource = "*"
+      },
+      {
+        Sid    = "STS"
+        Effect = "Allow"
+        Action = ["sts:GetCallerIdentity"]
         Resource = "*"
       }
     ]
@@ -248,7 +266,6 @@ resource "aws_iam_policy" "eso_secrets_manager" {
           "secretsmanager:GetSecretValue",
           "secretsmanager:DescribeSecret"
         ]
-        # Scoped to only the Anthropic secret — least privilege
         Resource = "arn:aws:secretsmanager:${var.aws_region}:*:secret:${var.anthropic_secret_name}-*"
       }
     ]

@@ -180,41 +180,21 @@ resource "helm_release" "argocd" {
 # APP OF APPS — bootstraps ArgoCD to watch the apps/ folder
 # Applied after ArgoCD is ready
 # =============================================================
-resource "kubernetes_manifest" "app_of_apps" {
-  manifest = {
-    apiVersion = "argoproj.io/v1alpha1"
-    kind       = "Application"
-    metadata = {
-      name      = "app-of-apps"
-      namespace = "argocd"
-      finalizers = ["resources-finalizer.argocd.argoproj.io"]
-    }
-    spec = {
-      project = "default"
-      source = {
-        repoURL        = "https://github.com/HenryKum23/Kubernetes_project.git"
-        targetRevision = "main"
-        path           = "apps"
-        directory = {
-          recurse = true
-        }
-      }
-      destination = {
-        server    = "https://kubernetes.default.svc"
-        namespace = "argocd"
-      }
-      syncPolicy = {
-        automated = {
-          prune    = true
-          selfHeal = true
-        }
-        syncOptions = [
-          "CreateNamespace=true",
-          "ServerSideApply=true"
-        ]
-      }
-    }
+resource "null_resource" "app_of_apps" {
+  triggers = {
+    always_run = timestamp()
   }
 
-  depends_on = [helm_release.argocd]
+  provisioner "local-exec" {
+    command = <<-EOT
+      aws eks update-kubeconfig --name ${module.eks.cluster_name} --region ${var.aws_region}
+      kubectl apply -f ${path.module}/../argocd-app-of-apps.yml
+    EOT
+  }
+
+  depends_on = [
+    module.eks,
+    helm_release.argocd,
+    helm_release.aws_load_balancer_controller
+  ]
 }
