@@ -87,6 +87,10 @@ module "eks" {
   cluster_name    = var.cluster_name
   cluster_version = var.cluster_version
 
+  lifecycle {
+    ignore_changes = [cluster_version]
+  }
+
   cluster_endpoint_public_access  = true
   cluster_endpoint_private_access = true
 
