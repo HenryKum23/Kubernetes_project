@@ -118,7 +118,7 @@ resource "aws_iam_role_policy" "github_actions" {
           "iam:CreatePolicyVersion", "iam:DeletePolicyVersion",
           "iam:CreateOpenIDConnectProvider", "iam:GetOpenIDConnectProvider",
           "iam:DeleteOpenIDConnectProvider", "iam:TagOpenIDConnectProvider",
-          "iam:CreateServiceLinkedRole"
+          "iam:CreateServiceLinkedRole", "iam:TagPolicy", "iam:UntagPolicy"
         ], Resource = "*"
       },
       { Sid = "S3State", Effect = "Allow", Action = [
