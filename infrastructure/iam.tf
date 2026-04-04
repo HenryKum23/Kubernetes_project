@@ -1,166 +1,13 @@
 # =============================================================
-# iam.tf — All IAM roles in one place
-# Replaces the iam block in cluster_config.yml
-# Replaces long-lived AWS keys with OIDC federation
+# iam.tf — IRSA roles for EKS add-ons
 # =============================================================
-
+# NOTE: The following resources are managed by bootstrap/ NOT here:
+#   - aws_iam_openid_connect_provider.github  (GitHub OIDC provider)
+#   - aws_iam_role.github_actions             (GitHub Actions role)
+#   - aws_iam_role_policy.github_actions      (GitHub Actions permissions)
+#
+# This file only manages IRSA roles for EKS add-ons
 # =============================================================
-# GITHUB ACTIONS OIDC — replaces AWS_ACCESS_KEY_ID secrets
-# GitHub assumes this role directly — no keys stored anywhere
-# =============================================================
-
-# Create the GitHub OIDC provider
-resource "aws_iam_openid_connect_provider" "github" {
-  url = "https://token.actions.githubusercontent.com"
-
-  client_id_list = ["sts.amazonaws.com"]
-
-  thumbprint_list = [
-    "6938fd4d98bab03faadb97b34396831e3780aea1",
-    "1c58a3a8518e8759bf075b76b750d4f2df264fcd"
-  ]
-}
-
-# IAM role that GitHub Actions assumes via OIDC
-resource "aws_iam_role" "github_actions" {
-  name = "github-actions-eks-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Federated = aws_iam_openid_connect_provider.github.arn
-        }
-        Action = "sts:AssumeRoleWithWebIdentity"
-        Condition = {
-          StringLike = {
-            "token.actions.githubusercontent.com:sub" = "repo:HenryKum23/Kubernetes_project:*"
-          }
-          StringEquals = {
-            "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-          }
-        }
-      }
-    ]
-  })
-}
-
-# Permissions the GitHub Actions role needs
-resource "aws_iam_role_policy" "github_actions" {
-  name = "github-actions-eks-policy"
-  role = aws_iam_role.github_actions.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "EKS"
-        Effect = "Allow"
-        Action = ["eks:*"]
-        Resource = "*"
-      },
-      {
-        Sid    = "EC2"
-        Effect = "Allow"
-        Action = ["ec2:*"]
-        Resource = "*"
-      },
-      {
-        Sid    = "IAMForIRSARoles"
-        Effect = "Allow"
-        Action = [
-          "iam:CreateRole",
-          "iam:DeleteRole",
-          "iam:AttachRolePolicy",
-          "iam:DetachRolePolicy",
-          "iam:PutRolePolicy",
-          "iam:DeleteRolePolicy",
-          "iam:GetRole",
-          "iam:GetRolePolicy",
-          "iam:ListRolePolicies",
-          "iam:ListAttachedRolePolicies",
-          "iam:PassRole",
-          "iam:TagRole",
-          "iam:UntagRole",
-          "iam:CreatePolicy",
-          "iam:DeletePolicy",
-          "iam:GetPolicy",
-          "iam:TagPolicy",
-          "iam:UntagPolicy",
-          "iam:GetPolicyVersion",
-          "iam:ListPolicyVersions",
-          "iam:CreatePolicyVersion",
-          "iam:DeletePolicyVersion",
-          "iam:CreateOpenIDConnectProvider",
-          "iam:GetOpenIDConnectProvider",
-          "iam:DeleteOpenIDConnectProvider",
-          "iam:TagOpenIDConnectProvider",
-          "iam:ListOpenIDConnectProviders",
-          "iam:CreateServiceLinkedRole"
-        ]
-        Resource = "*"
-      },
-      {
-        Sid    = "S3State"
-        Effect = "Allow"
-        Action = ["s3:*"]
-        Resource = [
-          "arn:aws:s3:::henry-eks-terraform-state",
-          "arn:aws:s3:::henry-eks-terraform-state/*"
-        ]
-      },
-      {
-        Sid    = "DynamoDB"
-        Effect = "Allow"
-        Action = [
-          "dynamodb:GetItem",
-          "dynamodb:PutItem",
-          "dynamodb:DeleteItem",
-          "dynamodb:DescribeTable"
-        ]
-        Resource = "arn:aws:dynamodb:us-east-1:*:table/henry-eks-terraform-locks"
-      },
-      {
-        Sid    = "ECR"
-        Effect = "Allow"
-        Action = ["ecr:*"]
-        Resource = "*"
-      },
-      {
-        Sid    = "CloudWatch"
-        Effect = "Allow"
-        Action = ["logs:*"]
-        Resource = "*"
-      },
-      {
-        Sid    = "AutoScaling"
-        Effect = "Allow"
-        Action = ["autoscaling:*"]
-        Resource = "*"
-      },
-      {
-        Sid    = "KMS"
-        Effect = "Allow"
-        Action = ["kms:*"]
-        Resource = "*"
-      },
-      {
-        Sid    = "ELB"
-        Effect = "Allow"
-        Action = ["elasticloadbalancing:*"]
-        Resource = "*"
-      },
-      {
-        Sid    = "STS"
-        Effect = "Allow"
-        Action = ["sts:GetCallerIdentity"]
-        Resource = "*"
-      }
-    ]
-  })
-}
 
 # =============================================================
 # IRSA ROLES — replaces iam.serviceAccounts in cluster_config.yml
@@ -268,6 +115,7 @@ resource "aws_iam_policy" "eso_secrets_manager" {
           "secretsmanager:GetSecretValue",
           "secretsmanager:DescribeSecret"
         ]
+        # Scoped to only the Anthropic secret — least privilege
         Resource = "arn:aws:secretsmanager:${var.aws_region}:*:secret:${var.anthropic_secret_name}-*"
       }
     ]
