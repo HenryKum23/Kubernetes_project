@@ -6,7 +6,8 @@
 
 # =============================================================
 # AWS LOAD BALANCER CONTROLLER
-# Must be installed before ArgoCD — ArgoCD needs ALB ingress
+# Must be installed before everything else — ArgoCD and ESO
+# both depend on the LBC webhook being ready
 # =============================================================
 resource "helm_release" "aws_load_balancer_controller" {
   name       = "aws-load-balancer-controller"
@@ -50,6 +51,11 @@ resource "helm_release" "aws_load_balancer_controller" {
     name  = "replicaCount"
     value = "1"
   }
+
+  # Wait for LBC to be fully ready before anything else installs
+  # This ensures the webhook is available before ESO and ArgoCD start
+  wait    = true
+  timeout = 300
 
   depends_on = [module.eks]
 }
@@ -110,6 +116,9 @@ resource "helm_release" "cluster_autoscaler" {
 
 # =============================================================
 # EXTERNAL SECRETS OPERATOR
+# Must wait for LBC webhook to be ready before installing
+# The ESO Helm chart triggers a mutating webhook from LBC
+# which fails if LBC is not fully initialised
 # =============================================================
 resource "helm_release" "external_secrets" {
   name             = "external-secrets"
@@ -140,7 +149,12 @@ resource "helm_release" "external_secrets" {
     value = module.eso_irsa.iam_role_arn
   }
 
-  depends_on = [module.eks]
+  # Wait for LBC to be fully ready — ESO install triggers LBC webhook
+  # Without this ESO fails with "no endpoints available for webhook"
+  depends_on = [
+    module.eks,
+    helm_release.aws_load_balancer_controller
+  ]
 }
 
 # =============================================================
