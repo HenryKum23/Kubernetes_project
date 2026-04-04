@@ -81,7 +81,7 @@ resource "aws_iam_openid_connect_provider" "github" {
 
 # 4. GitHub Actions IAM role — the role your pipeline assumes via OIDC
 resource "aws_iam_role" "github_actions" {
-  name        = "${var.project_name}-github-actions-role"
+  name = "${var.project_name}-github-actions-role"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -102,37 +102,112 @@ resource "aws_iam_role_policy" "github_actions" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
-      { Sid = "EKS",         Effect = "Allow", Action = ["eks:*"],                  Resource = "*" },
-      { Sid = "EC2",         Effect = "Allow", Action = ["ec2:*"],                  Resource = "*" },
-      { Sid = "ECR",         Effect = "Allow", Action = ["ecr:*"],                  Resource = "*" },
-      { Sid = "Logs",        Effect = "Allow", Action = ["logs:*"],                 Resource = "*" },
-      { Sid = "ASG",         Effect = "Allow", Action = ["autoscaling:*"],          Resource = "*" },
-      { Sid = "ELB",         Effect = "Allow", Action = ["elasticloadbalancing:*"], Resource = "*" },
-      { Sid = "IAM",         Effect = "Allow", Action = [
-          "iam:CreateRole", "iam:DeleteRole", "iam:AttachRolePolicy",
-          "iam:DetachRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy",
-          "iam:GetRole", "iam:GetRolePolicy", "iam:ListRolePolicies",
-          "iam:ListAttachedRolePolicies", "iam:PassRole", "iam:TagRole",
-          "iam:CreatePolicy", "iam:DeletePolicy", "iam:GetPolicy",
-          "iam:GetPolicyVersion", "iam:ListPolicyVersions",
-          "iam:CreatePolicyVersion", "iam:DeletePolicyVersion",
-          "iam:CreateOpenIDConnectProvider", "iam:GetOpenIDConnectProvider",
-          "iam:DeleteOpenIDConnectProvider", "iam:TagOpenIDConnectProvider",
-          "iam:CreateServiceLinkedRole", "iam:TagPolicy", "iam:UntagPolicy"
-        ], Resource = "*"
+      {
+        Sid    = "EKS"
+        Effect = "Allow"
+        Action = ["eks:*"]
+        Resource = "*"
       },
-      { Sid = "S3State", Effect = "Allow", Action = [
-          "s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"
-        ],
+      {
+        Sid    = "EC2"
+        Effect = "Allow"
+        Action = ["ec2:*"]
+        Resource = "*"
+      },
+      {
+        Sid    = "ECR"
+        Effect = "Allow"
+        Action = ["ecr:*"]
+        Resource = "*"
+      },
+      {
+        Sid    = "Logs"
+        Effect = "Allow"
+        Action = ["logs:*"]
+        Resource = "*"
+      },
+      {
+        Sid    = "ASG"
+        Effect = "Allow"
+        Action = ["autoscaling:*"]
+        Resource = "*"
+      },
+      {
+        Sid    = "ELB"
+        Effect = "Allow"
+        Action = ["elasticloadbalancing:*"]
+        Resource = "*"
+      },
+      {
+        Sid    = "KMS"
+        Effect = "Allow"
+        Action = ["kms:*"]
+        Resource = "*"
+      },
+      {
+        Sid    = "STS"
+        Effect = "Allow"
+        Action = ["sts:GetCallerIdentity"]
+        Resource = "*"
+      },
+      {
+        Sid    = "IAM"
+        Effect = "Allow"
+        Action = [
+          "iam:CreateRole",
+          "iam:DeleteRole",
+          "iam:AttachRolePolicy",
+          "iam:DetachRolePolicy",
+          "iam:PutRolePolicy",
+          "iam:DeleteRolePolicy",
+          "iam:GetRole",
+          "iam:GetRolePolicy",
+          "iam:ListRolePolicies",
+          "iam:ListAttachedRolePolicies",
+          "iam:PassRole",
+          "iam:TagRole",
+          "iam:UntagRole",
+          "iam:CreatePolicy",
+          "iam:DeletePolicy",
+          "iam:GetPolicy",
+          "iam:TagPolicy",
+          "iam:UntagPolicy",
+          "iam:GetPolicyVersion",
+          "iam:ListPolicyVersions",
+          "iam:CreatePolicyVersion",
+          "iam:DeletePolicyVersion",
+          "iam:CreateOpenIDConnectProvider",
+          "iam:GetOpenIDConnectProvider",
+          "iam:DeleteOpenIDConnectProvider",
+          "iam:TagOpenIDConnectProvider",
+          "iam:ListOpenIDConnectProviders",
+          "iam:CreateServiceLinkedRole"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "S3State"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:ListBucket"
+        ]
         Resource = [
           aws_s3_bucket.terraform_state.arn,
           "${aws_s3_bucket.terraform_state.arn}/*"
         ]
       },
-      { Sid = "DynamoDB", Effect = "Allow", Action = [
-          "dynamodb:GetItem", "dynamodb:PutItem",
-          "dynamodb:DeleteItem", "dynamodb:DescribeTable"
-        ],
+      {
+        Sid    = "DynamoDB"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:DescribeTable"
+        ]
         Resource = aws_dynamodb_table.terraform_locks.arn
       }
     ]
