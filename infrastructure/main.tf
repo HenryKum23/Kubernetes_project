@@ -115,7 +115,7 @@ module "eks" {
   eks_managed_node_groups = {
     app-nodes = {
       instance_types = [var.node_instance_type]
-      ami_type       = "AL2023_x86_64_STANDARD"
+      ami_type       = "AL2_x86_64"
       min_size       = var.node_min_size
       max_size       = var.node_max_size
       desired_size   = var.node_desired_size
@@ -137,6 +137,15 @@ module "eks" {
           policy_arn   = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
           access_scope = { type = "cluster" }
         }
+      }
+    }
+  # Platform engineer access — your local user for operations and debugging
+  platform_engineer = {
+    principal_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:user/Practice_user"
+    policy_associations = {
+      admin = {
+        policy_arn   = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+        access_scope = { type = "cluster" }
       }
     }
   }
