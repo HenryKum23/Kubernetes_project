@@ -7,10 +7,6 @@
 # DEPENDS ON: bootstrap must have run first
 # ==============================================================
 
-# =============================================================
-# main.tf — VPC and EKS cluster
-# ============================================================
-
 # ── Providers ─────────────────────────────────────────────────
 
 provider "aws" {
@@ -64,7 +60,7 @@ module "vpc" {
   public_subnets  = var.public_subnets
 
   enable_nat_gateway   = true
-  single_nat_gateway   = true   # One NAT to save costs — change to false for full HA
+  single_nat_gateway   = true
   enable_dns_hostnames = true
   enable_dns_support   = true
 
@@ -93,7 +89,7 @@ module "eks" {
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnets
 
-  enable_irsa = true  # Required for IRSA (pod-level IAM permissions)
+  enable_irsa = true
 
   cluster_enabled_log_types = ["api", "audit", "authenticator"]
 
@@ -101,7 +97,7 @@ module "eks" {
   cluster_addons = {
     coredns    = { most_recent = true }
     kube-proxy = { most_recent = true }
-    vpc-cni    = {
+    vpc-cni = {
       most_recent              = true
       service_account_role_arn = module.vpc_cni_irsa.iam_role_arn
     }
@@ -128,8 +124,10 @@ module "eks" {
     }
   }
 
-  # Allow the GitHub Actions role (created by bootstrap) to manage the cluster
+  # Access entries — controls who can talk to the Kubernetes API
   access_entries = {
+
+    # GitHub Actions role — used by the pipeline to deploy
     github_actions = {
       principal_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/henry-eks-github-actions-role"
       policy_associations = {
@@ -139,13 +137,15 @@ module "eks" {
         }
       }
     }
-  # Platform engineer access — your local user for operations and debugging
-  platform_engineer = {
-    principal_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:user/Practice_user"
-    policy_associations = {
-      admin = {
-        policy_arn   = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
-        access_scope = { type = "cluster" }
+
+    # Platform engineer — local user for operations, debugging, and kubectl access
+    platform_engineer = {
+      principal_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:user/Practice_user"
+      policy_associations = {
+        admin = {
+          policy_arn   = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = { type = "cluster" }
+        }
       }
     }
   }
